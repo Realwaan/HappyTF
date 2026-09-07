@@ -1,0 +1,272 @@
+'use client';
+
+import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext';
+import { X, Sparkles, Check, ArrowRight } from 'lucide-react';
+
+export const CreateWorkspaceModal: React.FC = () => {
+  const { isCreateWorkspaceOpen, setCreateWorkspaceOpen, createWorkspace } = useApp();
+  const [name, setName] = useState('');
+  const [iconEmoji, setIconEmoji] = useState('💼');
+  const [brandColor, setBrandColor] = useState('#6366f1');
+
+  if (!isCreateWorkspaceOpen) return null;
+
+  const emojis = ['💼', '🚀', '⚡', '🎯', '🎨', '🔥', '📊', '🌐', '💡', '🛡️'];
+  const colors = ['#6366f1', '#a855f7', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#64748b'];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    createWorkspace(name.trim(), iconEmoji, brandColor);
+    setName('');
+    setCreateWorkspaceOpen(false);
+  };
+
+  return (
+    <div className="modal-overlay" id="create-workspace-overlay">
+      <div className="modal-card glass-panel animate-pop-in" id="create-workspace-modal">
+        <button
+          id="close-create-ws-btn"
+          type="button"
+          className="modal-close-btn"
+          onClick={() => setCreateWorkspaceOpen(false)}
+        >
+          <X size={18} />
+        </button>
+
+        <div className="modal-header">
+          <div className="modal-badge">
+            <Sparkles size={14} />
+            <span>New Organization Hub</span>
+          </div>
+          <h2>Create Workspace</h2>
+          <p className="text-secondary text-sm">
+            Workspaces are dedicated spaces for teams, projects, and shared boards.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="modal-form">
+          <div className="form-group">
+            <label htmlFor="new-ws-name">Workspace Name</label>
+            <div className="ws-name-input-group">
+              <span className="emoji-display">{iconEmoji}</span>
+              <input
+                id="new-ws-name"
+                type="text"
+                className="input-field"
+                placeholder="e.g. Design & Creative Lab"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+          </div>
+
+          <div className="style-pickers">
+            <div className="picker-col">
+              <label className="text-xs text-muted">Workspace Icon</label>
+              <div className="emoji-list">
+                {emojis.map((em) => (
+                  <button
+                    key={em}
+                    type="button"
+                    className={`emoji-btn ${iconEmoji === em ? 'selected' : ''}`}
+                    onClick={() => setIconEmoji(em)}
+                  >
+                    {em}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="picker-col">
+              <label className="text-xs text-muted">Accent Theme</label>
+              <div className="color-list">
+                {colors.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`color-btn ${brandColor === c ? 'selected' : ''}`}
+                    style={{ backgroundColor: c }}
+                    onClick={() => setBrandColor(c)}
+                  >
+                    {brandColor === c && <Check size={12} color="#ffffff" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="modal-actions">
+            <button
+              id="cancel-create-ws-btn"
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setCreateWorkspaceOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              id="submit-create-ws-btn"
+              type="submit"
+              className="btn btn-primary"
+              disabled={!name.trim()}
+            >
+              <span>Create Workspace</span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <style jsx>{`
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(4, 6, 12, 0.75);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 20px;
+        }
+
+        .modal-card {
+          width: 100%;
+          max-width: 460px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-default);
+          border-radius: 18px;
+          padding: 30px;
+          position: relative;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+
+        .modal-close-btn {
+          position: absolute;
+          top: 18px;
+          right: 18px;
+          color: var(--text-muted);
+          padding: 6px;
+          border-radius: 8px;
+          transition: all var(--transition-fast);
+        }
+        .modal-close-btn:hover {
+          background: var(--bg-hover);
+          color: var(--text-primary);
+        }
+
+        .modal-header {
+          margin-bottom: 22px;
+        }
+
+        .modal-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 3px 10px;
+          border-radius: 9999px;
+          background: var(--primary-glow);
+          color: var(--primary-light);
+          font-size: 11px;
+          font-weight: 600;
+          margin-bottom: 10px;
+        }
+
+        .modal-header h2 {
+          font-size: 22px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin-bottom: 6px;
+        }
+
+        .modal-form {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .form-group label {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--text-secondary);
+        }
+
+        .ws-name-input-group {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .emoji-display {
+          font-size: 22px;
+          padding: 7px 12px;
+          background: var(--bg-subtle);
+          border: 1px solid var(--border-default);
+          border-radius: 10px;
+        }
+
+        .style-pickers {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+
+        .picker-col {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .emoji-list, .color-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .emoji-btn {
+          font-size: 16px;
+          padding: 5px;
+          border-radius: 8px;
+          background: var(--bg-subtle);
+          border: 1px solid var(--border-subtle);
+          transition: transform var(--transition-fast);
+        }
+        .emoji-btn.selected {
+          border-color: var(--primary);
+          background: var(--primary-glow);
+          transform: scale(1.1);
+        }
+
+        .color-btn {
+          width: 26px;
+          height: 26px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform var(--transition-fast);
+        }
+        .color-btn.selected {
+          transform: scale(1.15);
+          box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+        }
+
+        .modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+          margin-top: 10px;
+        }
+      `}</style>
+    </div>
+  );
+};
