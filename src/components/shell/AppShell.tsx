@@ -9,13 +9,15 @@ import { AuthModal } from '../auth/AuthModal';
 import { OnboardingWizard } from '../onboarding/OnboardingWizard';
 import { CreateWorkspaceModal } from '../workspace/CreateWorkspaceModal';
 import { WorkspaceSettingsModal } from '../workspace/WorkspaceSettingsModal';
+import { ItemDetailPanel } from '../board/ItemDetailPanel';
+import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 
 interface AppShellProps {
   children: React.ReactNode;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
-  const { isSidebarCollapsed, currentUser } = useApp();
+  const { currentUser } = useApp();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   return (
@@ -30,6 +32,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           {children}
         </main>
       </div>
+
+      {/* Slide-over Item Detail Panel (520px) */}
+      <ItemDetailPanel />
+
+      {/* Keyboard Shortcuts Cheat Sheet */}
+      <KeyboardShortcutsModal />
 
       {/* Modals & Dialogs */}
       <CommandPalette />

@@ -9,12 +9,13 @@ import {
   Sun, 
   Moon, 
   UserPlus, 
-  ChevronDown, 
   User, 
   Settings, 
   Sparkles, 
   LogOut, 
-  LogIn 
+  LogIn,
+  Keyboard,
+  Layers
 } from 'lucide-react';
 
 interface TopbarProps {
@@ -31,7 +32,11 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
     setCommandPaletteOpen, 
     setWorkspaceSettingsOpen,
     setOnboardingOpen,
-    logout
+    logout,
+    activeView,
+    activeBoard,
+    navigateToHome,
+    setShortcutsModalOpen
   } = useApp();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -54,9 +59,18 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
       <div className="topbar-left">
         <div className="breadcrumb-pill">
           <span className="ws-indicator">{currentWorkspace?.icon_emoji || '⚡'}</span>
-          <span className="breadcrumb-name">{currentWorkspace?.name || 'Workspace'}</span>
+          <button type="button" className="breadcrumb-link" onClick={navigateToHome}>
+            {currentWorkspace?.name || 'Workspace'}
+          </button>
           <span className="breadcrumb-divider">/</span>
-          <span className="breadcrumb-current">My Work</span>
+          {activeView === 'home' ? (
+            <span className="breadcrumb-current">My Work</span>
+          ) : (
+            <span className="breadcrumb-current flex items-center gap-1">
+              <span>{activeBoard?.icon_emoji}</span>
+              <span>{activeBoard?.name || 'Board'}</span>
+            </span>
+          )}
         </div>
       </div>
 
@@ -71,7 +85,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
         >
           <Search size={15} className="search-icon" />
           <span className="search-text">Search boards, items, or jump to...</span>
-          <span className="kbd-shortcut">
+          <span className="kbd-shortcut font-mono">
             <kbd>⌘</kbd>
             <kbd>K</kbd>
           </span>
@@ -91,6 +105,18 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           <span>Invite</span>
         </button>
 
+        {/* Keyboard Shortcuts Trigger */}
+        <button
+          id="topbar-shortcuts-btn"
+          type="button"
+          className="icon-tool-btn"
+          onClick={() => setShortcutsModalOpen(true)}
+          title="Keyboard Shortcuts (?)"
+          aria-label="Keyboard Shortcuts"
+        >
+          <Keyboard size={16} />
+        </button>
+
         {/* Theme Toggle */}
         <button
           id="topbar-theme-toggle"
@@ -100,7 +126,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
           aria-label="Toggle theme"
         >
-          {theme === 'dark' ? <Sun size={17} style={{ color: '#f59e0b' }} /> : <Moon size={17} style={{ color: '#6366f1' }} />}
+          {theme === 'dark' ? <Sun size={16} style={{ color: '#f59e0b' }} /> : <Moon size={16} style={{ color: '#6366f1' }} />}
         </button>
 
         {/* Notifications Bell */}
@@ -113,8 +139,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
             title="Notifications"
             aria-label="Open notifications"
           >
-            <Bell size={17} />
-            {unreadCount > 0 && <span className="bell-badge">{unreadCount}</span>}
+            <Bell size={16} />
+            {unreadCount > 0 && <span className="bell-badge font-mono">{unreadCount}</span>}
           </button>
 
           <NotificationsPopover
@@ -163,7 +189,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
                 <div className="profile-meta">
                   <span className="profile-name">{currentUser.full_name}</span>
                   <span className="profile-role">{currentUser.job_role || 'Workspace Member'}</span>
-                  <span className="profile-email text-xs text-muted">{currentUser.email}</span>
+                  <span className="profile-email text-xs text-muted font-mono">{currentUser.email}</span>
                 </div>
               </div>
 
@@ -258,9 +284,13 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           font-size: 16px;
         }
 
-        .breadcrumb-name {
+        .breadcrumb-link {
           font-weight: 600;
           color: var(--text-primary);
+          transition: color var(--transition-fast);
+        }
+        .breadcrumb-link:hover {
+          color: var(--primary-light);
         }
 
         .breadcrumb-divider {
@@ -269,7 +299,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
 
         .breadcrumb-current {
           color: var(--primary-light);
-          font-weight: 500;
+          font-weight: 600;
         }
 
         /* Center Command trigger */
@@ -313,7 +343,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           border: 1px solid var(--border-subtle);
           border-radius: 4px;
           font-size: 10px;
-          font-family: var(--font-mono);
           color: var(--text-muted);
         }
 
@@ -321,12 +350,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
         .topbar-right {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
         }
 
         .icon-tool-btn {
-          width: 34px;
-          height: 34px;
+          width: 32px;
+          height: 32px;
           border-radius: 8px;
           display: flex;
           align-items: center;
@@ -342,8 +371,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
 
         .bell-badge {
           position: absolute;
-          top: 4px;
-          right: 4px;
+          top: 3px;
+          right: 3px;
           min-width: 16px;
           height: 16px;
           padding: 0 4px;
@@ -361,7 +390,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           position: relative;
         }
 
-        /* Profile avatar button */
         .user-profile-btn {
           position: relative;
           padding: 2px;
@@ -391,7 +419,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           right: 2px;
         }
 
-        /* Profile dropdown */
         .profile-dropdown-menu {
           position: absolute;
           top: calc(100% + 10px);

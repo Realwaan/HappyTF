@@ -102,3 +102,59 @@ export interface OnboardingState {
   brandColor: string;
   invitedEmails: string[];
 }
+
+/* ==========================================================================
+   Core Board Engine & View Models
+   ========================================================================== */
+
+export type ViewMode = 'table' | 'kanban';
+
+export interface BoardGroup {
+  id: string;
+  board_id: string;
+  name: string;
+  color: string;
+  collapsed?: boolean;
+}
+
+export interface ItemActivity {
+  id: string;
+  author_name: string;
+  action: string;
+  timestamp: string;
+}
+
+export interface ItemReaction {
+  emoji: string;
+  count: number;
+  users: string[];
+}
+
+export interface ItemComment {
+  id: string;
+  author_name: string;
+  author_avatar: string;
+  content: string;
+  timestamp: string;
+  reactions: ItemReaction[];
+}
+
+export interface BoardItem {
+  id: string;
+  board_id: string;
+  group_id: string;
+  title: string;
+  status: 'Working on it' | 'Stuck' | 'Done' | 'Pending' | 'In Review';
+  status_color: string;
+  priority: 'urgent' | 'high' | 'medium' | 'low';
+  due_date: string;
+  assignee: {
+    id: string;
+    name: string;
+    avatar: string;
+  };
+  tags: string[];
+  description?: string;
+  activities: ItemActivity[];
+  comments: ItemComment[];
+}

@@ -28,7 +28,9 @@ export const MyWorkDashboard: React.FC = () => {
     updateWorkItemStatus, 
     createBoard,
     setWorkspaceSettingsOpen,
-    setOnboardingOpen
+    setOnboardingOpen,
+    openItemDetail,
+    navigateToBoard
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'assigned' | 'recent'>('assigned');
@@ -218,8 +220,9 @@ export const MyWorkDashboard: React.FC = () => {
                 {filteredItems.map((item) => (
                   <div 
                     key={item.id} 
-                    className="table-item-row"
+                    className="table-item-row cursor-pointer"
                     id={`work-item-${item.id}`}
+                    onClick={() => openItemDetail(item.id)}
                   >
                     <div className="col-task">
                       <div className="item-title-group">
@@ -232,7 +235,7 @@ export const MyWorkDashboard: React.FC = () => {
                     </div>
 
                     {/* Interactive Status Selector */}
-                    <div className="col-status">
+                    <div className="col-status" onClick={(e) => e.stopPropagation()}>
                       <div className="status-dropdown-wrap">
                         <button
                           type="button"
@@ -316,7 +319,7 @@ export const MyWorkDashboard: React.FC = () => {
                     key={board.id}
                     className="board-card glass-panel"
                     id={`board-card-${board.id}`}
-                    onClick={() => alert(`Launching board: "${board.name}"`)}
+                    onClick={() => navigateToBoard(board.id)}
                   >
                     <div className="board-card-header">
                       <span className="board-card-emoji">{board.icon_emoji}</span>

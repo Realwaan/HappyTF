@@ -14,9 +14,8 @@ import {
   Settings, 
   Sparkles, 
   Check, 
-  Hash, 
   FolderPlus,
-  HelpCircle
+  Keyboard
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -30,13 +29,17 @@ export const Sidebar: React.FC = () => {
     setCreateWorkspaceOpen, 
     setWorkspaceSettingsOpen,
     setOnboardingOpen,
-    createBoard
+    createBoard,
+    activeView,
+    activeBoardId,
+    navigateToBoard,
+    navigateToHome,
+    setShortcutsModalOpen
   } = useApp();
 
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -148,15 +151,16 @@ export const Sidebar: React.FC = () => {
 
       {/* 2. Main Navigation Links */}
       <nav className="sidebar-nav" id="sidebar-main-nav">
-        <a 
-          href="#home" 
-          className="nav-link active" 
+        <button
+          type="button"
+          onClick={navigateToHome}
+          className={`nav-link ${activeView === 'home' ? 'active' : ''}`}
           id="nav-home-link"
           title="Home & My Work"
         >
           <Home size={18} />
           {!isSidebarCollapsed && <span>My Work</span>}
-        </a>
+        </button>
 
         {/* Boards Section */}
         <div className="nav-group">
@@ -181,9 +185,9 @@ export const Sidebar: React.FC = () => {
                 key={b.id}
                 id={`sidebar-board-${b.id}`}
                 type="button"
-                className="board-nav-item"
+                className={`board-nav-item ${activeBoardId === b.id && activeView === 'board' ? 'active' : ''}`}
                 title={b.name}
-                onClick={() => alert(`Navigating to ${b.name}`)}
+                onClick={() => navigateToBoard(b.id)}
               >
                 <span className="board-emoji">{b.icon_emoji}</span>
                 {!isSidebarCollapsed && (
@@ -195,56 +199,58 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {/* Dashboards & Templates Navigation */}
-        <a 
-          href="#dashboards" 
-          className="nav-link" 
-          id="nav-dashboards-link"
-          title="Dashboards"
-        >
+        <div className="nav-link disabled-link" title="Dashboards (Month 8)">
           <PieChart size={18} />
           {!isSidebarCollapsed && (
             <div className="nav-label-with-badge">
               <span>Dashboards</span>
-              <span className="feature-pill">Month 8</span>
+              <span className="feature-pill font-mono">Month 8</span>
             </div>
           )}
-        </a>
+        </div>
 
-        <a 
-          href="#templates" 
-          className="nav-link" 
-          id="nav-templates-link"
-          title="Templates"
-        >
+        <div className="nav-link disabled-link" title="Templates">
           <Layers size={18} />
           {!isSidebarCollapsed && (
             <div className="nav-label-with-badge">
               <span>Templates</span>
-              <span className="count-badge">10</span>
+              <span className="count-badge font-mono">10</span>
             </div>
           )}
-        </a>
+        </div>
       </nav>
 
-      {/* 3. Sidebar Footer & Collapse Toggle */}
+      {/* 3. Sidebar Footer */}
       <div className="sidebar-footer">
-        <button
-          id="sidebar-onboarding-tour-btn"
-          type="button"
-          className="footer-btn"
-          onClick={() => setOnboardingOpen(true)}
-          title="Restart Onboarding Wizard"
-        >
-          <Sparkles size={16} className="text-primary" />
-          {!isSidebarCollapsed && <span>Setup Wizard</span>}
-        </button>
+        <div className="footer-left">
+          <button
+            id="sidebar-onboarding-tour-btn"
+            type="button"
+            className="footer-btn"
+            onClick={() => setOnboardingOpen(true)}
+            title="Setup Wizard"
+          >
+            <Sparkles size={16} className="text-primary" />
+            {!isSidebarCollapsed && <span>Setup Wizard</span>}
+          </button>
+
+          <button
+            id="sidebar-shortcuts-btn"
+            type="button"
+            className="footer-btn"
+            onClick={() => setShortcutsModalOpen(true)}
+            title="Keyboard Shortcuts (?)"
+          >
+            <Keyboard size={15} className="text-secondary" />
+          </button>
+        </div>
 
         <button
           id="sidebar-collapse-toggle-btn"
           type="button"
           className="collapse-btn"
           onClick={toggleSidebar}
-          title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          title={isSidebarCollapsed ? 'Expand Sidebar ([)' : 'Collapse Sidebar ([)'}
           aria-label="Toggle sidebar collapse"
         >
           {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -426,6 +432,7 @@ export const Sidebar: React.FC = () => {
         }
 
         .nav-link {
+          width: 100%;
           display: flex;
           align-items: center;
           gap: 12px;
@@ -435,6 +442,7 @@ export const Sidebar: React.FC = () => {
           font-weight: 500;
           color: var(--text-secondary);
           transition: all var(--transition-fast);
+          text-align: left;
         }
         .nav-link:hover {
           background: var(--bg-hover);
@@ -444,6 +452,12 @@ export const Sidebar: React.FC = () => {
           background: var(--bg-elevated);
           color: var(--primary-light);
           font-weight: 600;
+          border-left: 3px solid var(--primary);
+        }
+
+        .disabled-link {
+          opacity: 0.65;
+          cursor: not-allowed;
         }
 
         .nav-label-with-badge {
@@ -513,11 +527,18 @@ export const Sidebar: React.FC = () => {
           gap: 10px;
           padding: 7px 12px;
           border-radius: 8px;
-          transition: background var(--transition-fast);
+          transition: all var(--transition-fast);
           text-align: left;
+          width: 100%;
         }
         .board-nav-item:hover {
           background: var(--bg-hover);
+        }
+        .board-nav-item.active {
+          background: var(--bg-elevated);
+          color: var(--primary-light);
+          font-weight: 600;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         }
 
         .board-emoji {
@@ -531,6 +552,9 @@ export const Sidebar: React.FC = () => {
           overflow: hidden;
           text-overflow: ellipsis;
         }
+        .board-nav-item.active .board-name {
+          color: var(--text-primary);
+        }
 
         /* Footer */
         .sidebar-footer {
@@ -542,6 +566,12 @@ export const Sidebar: React.FC = () => {
           gap: 8px;
           flex-shrink: 0;
           background: var(--bg-subtle);
+        }
+
+        .footer-left {
+          display: flex;
+          align-items: center;
+          gap: 4px;
         }
 
         .footer-btn {

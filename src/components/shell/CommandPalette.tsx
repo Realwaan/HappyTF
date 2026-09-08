@@ -30,7 +30,8 @@ export const CommandPalette: React.FC = () => {
     setOnboardingOpen,
     toggleTheme, 
     theme,
-    createBoard 
+    createBoard,
+    navigateToBoard
   } = useApp();
 
   const [query, setQuery] = useState('');
@@ -55,7 +56,7 @@ export const CommandPalette: React.FC = () => {
     subtitle: `${b.item_count} items · updated ${b.updated_at}`,
     icon: <span style={{ fontSize: 16 }}>{b.icon_emoji}</span>,
     action: () => {
-      alert(`Opening board: "${b.name}"`);
+      navigateToBoard(b.id);
       setCommandPaletteOpen(false);
     },
   }));
