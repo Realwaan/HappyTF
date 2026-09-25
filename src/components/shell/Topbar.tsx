@@ -15,8 +15,11 @@ import {
   LogOut, 
   LogIn,
   Keyboard,
-  Layers
+  Layers,
+  Menu,
+  Plus
 } from 'lucide-react';
+import { IconBadge } from '../common/IconBadge';
 
 interface TopbarProps {
   onOpenAuth: () => void;
@@ -31,12 +34,18 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
     toggleTheme, 
     setCommandPaletteOpen, 
     setWorkspaceSettingsOpen,
+    setCreateWorkspaceOpen,
+    setCreateBoardOpen,
+    setQuickTaskOpen,
     setOnboardingOpen,
     logout,
     activeView,
     activeBoard,
+    boardGroups,
+    addBoardItem,
     navigateToHome,
-    setShortcutsModalOpen
+    setShortcutsModalOpen,
+    toggleMobileSidebar
   } = useApp();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -55,19 +64,36 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
 
   return (
     <header className="app-topbar glass-panel" id="app-topbar">
-      {/* 1. Left section: Current Context */}
+      {/* 1. Left section: Current Context & Mobile Hamburger */}
       <div className="topbar-left">
+        <button
+          id="topbar-mobile-hamburger"
+          type="button"
+          className="mobile-menu-trigger icon-tool-btn"
+          onClick={toggleMobileSidebar}
+          title="Open Navigation"
+          aria-label="Toggle mobile menu navigation"
+        >
+          <Menu size={18} />
+        </button>
+
         <div className="breadcrumb-pill">
-          <span className="ws-indicator">{currentWorkspace?.icon_emoji || '⚡'}</span>
-          <button type="button" className="breadcrumb-link" onClick={navigateToHome}>
+          <span className="ws-indicator">
+            <IconBadge 
+              nameOrEmoji={currentWorkspace?.icon_emoji || 'zap'} 
+              size={13} 
+              color={currentWorkspace?.brand_color || 'var(--primary)'} 
+            />
+          </span>
+          <button type="button" className="breadcrumb-link" onClick={navigateToHome} aria-label="Go to workspace home">
             {currentWorkspace?.name || 'Workspace'}
           </button>
           <span className="breadcrumb-divider">/</span>
           {activeView === 'home' ? (
             <span className="breadcrumb-current">My Work</span>
           ) : (
-            <span className="breadcrumb-current flex items-center gap-1">
-              <span>{activeBoard?.icon_emoji}</span>
+            <span className="breadcrumb-current flex items-center gap-1.5">
+              <IconBadge nameOrEmoji={activeBoard?.icon_emoji || 'kanban'} size={13} />
               <span>{activeBoard?.name || 'Board'}</span>
             </span>
           )}
@@ -81,7 +107,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           type="button"
           className="search-palette-trigger"
           onClick={() => setCommandPaletteOpen(true)}
-          aria-label="Search or run command"
+          aria-label="Search boards, items, or run command (⌘K)"
         >
           <Search size={15} className="search-icon" />
           <span className="search-text">Search boards, items, or jump to...</span>
@@ -94,12 +120,35 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
 
       {/* 3. Right: Actions & User Menu */}
       <div className="topbar-right">
+        {/* Standout Primary Call to Action (CTA) */}
+        <button
+          id="topbar-primary-cta"
+          type="button"
+          className="btn btn-primary btn-sm topbar-cta-btn"
+          onClick={() => {
+            if (activeView === 'board') {
+              setQuickTaskOpen(true);
+            } else {
+              setCreateBoardOpen(true);
+            }
+          }}
+          title={activeView === 'board' ? 'Create new task (C)' : 'Create new board (B)'}
+          aria-label={activeView === 'board' ? 'Create new task' : 'Create new board'}
+        >
+          <Plus size={14} />
+          <span className="cta-label font-semibold">
+            {activeView === 'board' ? 'New Issue' : 'New Board'}
+          </span>
+          <kbd className="topbar-cta-kbd font-mono">{activeView === 'board' ? 'C' : 'B'}</kbd>
+        </button>
+
         {/* Quick Invite Button */}
         <button
           id="topbar-invite-btn"
           type="button"
           className="btn btn-secondary btn-sm"
           onClick={() => setWorkspaceSettingsOpen(true, 'members')}
+          aria-label="Invite team members"
         >
           <UserPlus size={14} className="text-primary" />
           <span>Invite</span>
@@ -290,7 +339,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           transition: color var(--transition-fast);
         }
         .breadcrumb-link:hover {
-          color: var(--primary-light);
+          color: var(--primary);
         }
 
         .breadcrumb-divider {
@@ -298,7 +347,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
         }
 
         .breadcrumb-current {
-          color: var(--primary-light);
+          color: var(--primary);
           font-weight: 600;
         }
 
@@ -351,6 +400,38 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           display: flex;
           align-items: center;
           gap: 10px;
+        }
+
+        .topbar-cta-btn {
+          background: var(--primary) !important;
+          color: var(--on-primary) !important;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 14px var(--primary-glow) !important;
+          border: 1px solid rgba(0, 0, 0, 0.15) !important;
+          font-weight: 600 !important;
+          letter-spacing: -0.01em;
+          transition: all var(--transition-fast);
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .topbar-cta-btn svg {
+          color: var(--on-primary) !important;
+          stroke: var(--on-primary) !important;
+        }
+        .topbar-cta-btn:hover {
+          background: var(--primary-hover) !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 16px rgba(62, 207, 142, 0.35) !important;
+        }
+
+        .topbar-cta-kbd {
+          padding: 1px 5px;
+          border-radius: 4px;
+          background: rgba(0, 0, 0, 0.28);
+          font-size: 10px;
+          font-weight: 700;
+          color: inherit;
+          border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
         .icon-tool-btn {

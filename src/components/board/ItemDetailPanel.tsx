@@ -17,9 +17,20 @@ import {
   History, 
   Trash2,
   Sparkles,
-  Layers
+  AlertCircle,
+  Eye,
+  CircleDot,
+  CheckCircle2,
+  CheckSquare,
+  Square,
+  Plus,
+  Flame,
+  FileText,
+  Kanban,
+  GitCommit,
+  ShieldCheck
 } from 'lucide-react';
-import { BoardItem } from '../../types';
+import { BoardItem, SubTask } from '../../types';
 
 export const ItemDetailPanel: React.FC = () => {
   const { 
@@ -32,7 +43,10 @@ export const ItemDetailPanel: React.FC = () => {
     addItemComment, 
     toggleCommentReaction,
     boardGroups,
-    activeBoard
+    activeBoard,
+    claimBoardItem,
+    currentUser,
+    gitHubCommits
   } = useApp();
 
   const [title, setTitle] = useState('');
@@ -40,6 +54,8 @@ export const ItemDetailPanel: React.FC = () => {
   const [newComment, setNewComment] = useState('');
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
+  const [isSeverityOpen, setIsSeverityOpen] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
 
   useEffect(() => {
     if (selectedItem) {
@@ -47,6 +63,8 @@ export const ItemDetailPanel: React.FC = () => {
       setDescription(selectedItem.description || '');
       setIsStatusOpen(false);
       setIsPriorityOpen(false);
+      setIsSeverityOpen(false);
+      setNewSubtaskTitle('');
     }
   }, [selectedItem]);
 
@@ -54,25 +72,61 @@ export const ItemDetailPanel: React.FC = () => {
 
   const currentGroup = boardGroups.find((g) => g.id === selectedItem.group_id);
 
-  const statusOptions: { label: BoardItem['status']; color: string; icon: string; className: string }[] = [
-    { label: 'Working on it', color: '#f59e0b', icon: '⚡', className: 'working' },
-    { label: 'In Review', color: '#8b5cf6', icon: '🟣', className: 'review' },
-    { label: 'Done', color: '#10b981', icon: '🟢', className: 'done' },
-    { label: 'Stuck', color: '#ef4444', icon: '🔴', className: 'stuck' },
-    { label: 'Pending', color: '#64748b', icon: '⏳', className: 'pending' },
+  const statusOptions: { label: BoardItem['status']; color: string; icon: React.ReactNode; className: string }[] = [
+    { label: 'Working on it', color: '#f59e0b', icon: <CircleDot size={13} style={{ color: '#f59e0b' }} />, className: 'working' },
+    { label: 'In Review', color: '#8b5cf6', icon: <Eye size={13} style={{ color: '#8b5cf6' }} />, className: 'review' },
+    { label: 'Done', color: '#10b981', icon: <CheckCircle2 size={13} style={{ color: '#10b981' }} />, className: 'done' },
+    { label: 'Stuck', color: '#ef4444', icon: <AlertCircle size={13} style={{ color: '#ef4444' }} />, className: 'stuck' },
+    { label: 'Pending', color: '#64748b', icon: <Clock size={13} style={{ color: '#94a3b8' }} />, className: 'pending' },
   ];
 
   const priorityOptions: BoardItem['priority'][] = ['urgent', 'high', 'medium', 'low'];
+  const severityOptions: NonNullable<BoardItem['severity']>[] = ['critical', 'major', 'minor', 'cosmetic'];
+
+  const toggleSubtask = (subtaskId: string) => {
+    const updatedSubtasks = (selectedItem.subtasks || []).map((st) =>
+      st.id === subtaskId ? { ...st, completed: !st.completed } : st
+    );
+    updateBoardItem(selectedItem.id, { subtasks: updatedSubtasks }, selectedItem.version);
+  };
+
+  const handleAddSubtask = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newSubtaskTitle.trim()) return;
+
+    const newSubtask: SubTask = {
+      id: `st-${Date.now()}`,
+      title: newSubtaskTitle.trim(),
+      completed: false,
+    };
+
+    const updatedSubtasks = [...(selectedItem.subtasks || []), newSubtask];
+    updateBoardItem(selectedItem.id, { subtasks: updatedSubtasks }, selectedItem.version);
+    setNewSubtaskTitle('');
+  };
+
+  const insertTemplate = (type: 'bug' | 'incident' | 'spec') => {
+    let tpl = '';
+    if (type === 'bug') {
+      tpl = `### Problem Summary\nDescribe the defect in clear terms.\n\n### Steps to Reproduce\n1. Go to...\n2. Click on...\n3. Observe error...\n\n### Expected vs Actual\n- **Expected:** \n- **Actual:** \n`;
+    } else if (type === 'incident') {
+      tpl = `### Incident Triage (Severity: Critical)\n- **Impact:** \n- **Affected Customers/Components:** \n- **Immediate Workaround:** \n- **Root Cause Analysis:** \n`;
+    } else {
+      tpl = `### Acceptance Criteria & Verification\n- [ ] Edge cases covered\n- [ ] Unit & integration tests pass\n- [ ] Performance SLA within 200ms\n`;
+    }
+    setDescription((prev) => (prev ? `${prev}\n\n${tpl}` : tpl));
+    updateBoardItem(selectedItem.id, { description: description ? `${description}\n\n${tpl}` : tpl }, selectedItem.version);
+  };
 
   const handleTitleBlur = () => {
     if (title.trim() && title !== selectedItem.title) {
-      updateBoardItem(selectedItem.id, { title: title.trim() });
+      updateBoardItem(selectedItem.id, { title: title.trim() }, selectedItem.version);
     }
   };
 
   const handleDescriptionBlur = () => {
     if (description !== selectedItem.description) {
-      updateBoardItem(selectedItem.id, { description });
+      updateBoardItem(selectedItem.id, { description }, selectedItem.version);
     }
   };
 
@@ -92,10 +146,22 @@ export const ItemDetailPanel: React.FC = () => {
       >
         {/* 1. Drawer Header & Sequential Navigation */}
         <div className="drawer-header">
-          <div className="header-left">
-            <span className="board-pill">
-              <Layers size={13} />
-              {activeBoard?.name || 'Board Item'}
+          <div className="header-left flex items-center gap-2 flex-wrap">
+            <span className="issue-key-badge font-mono text-xs font-semibold px-2.5 py-0.5 rounded bg-black/40 text-emerald-400 border border-emerald-500/30">
+              {selectedItem.ticket_number || `#TK-${selectedItem.id.replace('item-', '').padStart(3, '0')}`}
+            </span>
+            {selectedItem.sla_due_at && (
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                <Clock size={11} />
+                SLA Active
+              </span>
+            )}
+            <span 
+              className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5"
+              title={`Concurrency token: v${selectedItem.version || 1}. Guaranteed synchronized.`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              v{selectedItem.version || 1} · Synced
             </span>
             <span className="group-crumb" style={{ color: currentGroup?.color }}>
               • {currentGroup?.name || 'Group'}
@@ -137,9 +203,9 @@ export const ItemDetailPanel: React.FC = () => {
         <div className="drawer-body">
           {/* Editable Title */}
           <div className="title-section">
-            <input
+            <textarea
               id="detail-item-title"
-              type="text"
+              rows={2}
               className="item-title-input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -173,10 +239,11 @@ export const ItemDetailPanel: React.FC = () => {
                         type="button"
                         className={`dropdown-option ${selectedItem.status === s.label ? 'active' : ''}`}
                         onClick={() => {
-                          updateBoardItem(selectedItem.id, {
-                            status: s.label,
-                            status_color: s.color,
-                          });
+                          updateBoardItem(
+                            selectedItem.id, 
+                            { status: s.label, status_color: s.color },
+                            selectedItem.version
+                          );
                           setIsStatusOpen(false);
                         }}
                       >
@@ -212,7 +279,11 @@ export const ItemDetailPanel: React.FC = () => {
                         type="button"
                         className={`dropdown-option ${selectedItem.priority === p ? 'active' : ''}`}
                         onClick={() => {
-                          updateBoardItem(selectedItem.id, { priority: p });
+                          updateBoardItem(
+                            selectedItem.id, 
+                            { priority: p },
+                            selectedItem.version
+                          );
                           setIsPriorityOpen(false);
                         }}
                       >
@@ -225,10 +296,50 @@ export const ItemDetailPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* Severity Property */}
+            <div className="property-row">
+              <span className="property-label">Severity</span>
+              <div className="property-value relative">
+                <button
+                  id="detail-severity-trigger"
+                  type="button"
+                  className={`badge ${selectedItem.severity === 'critical' ? 'badge-urgent' : 'badge-medium'}`}
+                  onClick={() => setIsSeverityOpen(!isSeverityOpen)}
+                >
+                  {selectedItem.severity === 'critical' && <Flame size={10} className="text-red-400" />}
+                  <span>{selectedItem.severity || 'minor'}</span>
+                  <ChevronDown size={10} />
+                </button>
+
+                {isSeverityOpen && (
+                  <div className="dropdown-popover glass-panel animate-pop-in" id="detail-severity-menu">
+                    {severityOptions.map((sev) => (
+                      <button
+                        key={sev}
+                        type="button"
+                        className={`dropdown-option ${selectedItem.severity === sev ? 'active' : ''}`}
+                        onClick={() => {
+                          updateBoardItem(
+                            selectedItem.id,
+                            { severity: sev },
+                            selectedItem.version
+                          );
+                          setIsSeverityOpen(false);
+                        }}
+                      >
+                        <span className="capitalize">{sev}</span>
+                        {selectedItem.severity === sev && <Check size={14} className="ml-auto" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Assignee Property */}
             <div className="property-row">
               <span className="property-label">Assignee</span>
-              <div className="property-value">
+              <div className="property-value flex items-center justify-between w-full">
                 <div className="assignee-chip">
                   <img
                     src={selectedItem.assignee.avatar}
@@ -237,17 +348,53 @@ export const ItemDetailPanel: React.FC = () => {
                   />
                   <span>{selectedItem.assignee.name}</span>
                 </div>
+
+                {selectedItem.assignee.id !== currentUser?.id ? (
+                  <button
+                    type="button"
+                    className="btn-claim"
+                    onClick={() => claimBoardItem(selectedItem.id, selectedItem.version)}
+                    title="Claim this task for yourself"
+                  >
+                    <ShieldCheck size={13} />
+                    <span>Claim Task</span>
+                  </button>
+                ) : (
+                  <span className="you-pill font-mono">
+                    Claimed by You
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Due Date Property */}
+            {/* Due Date & SLA Property */}
             <div className="property-row">
-              <span className="property-label">Due Date</span>
+              <span className="property-label">Target SLA</span>
               <div className="property-value">
                 <div className="date-chip">
                   <Calendar size={13} className="text-muted" />
                   <span className="font-mono text-xs">{selectedItem.due_date}</span>
                 </div>
+              </div>
+            </div>
+
+            {/* Integration Source Property */}
+            <div className="property-row">
+              <span className="property-label">Channel Source</span>
+              <div className="property-value">
+                {selectedItem.external_source === 'slack' || selectedItem.slack_channel_id ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-[#4A154B]/30 text-[#ECB22E] border border-[#E01E5A]/30">
+                    <MessageSquare size={12} className="text-[#ECB22E]" />
+                    <span>{selectedItem.slack_channel_id || '#triage'} (Slack Thread Sync)</span>
+                  </span>
+                ) : selectedItem.external_source === 'monday' ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                    <Kanban size={12} className="text-blue-400" />
+                    <span>Monday.com Board Pulse</span>
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400 font-mono">Web OS Direct</span>
+                )}
               </div>
             </div>
 
@@ -267,17 +414,91 @@ export const ItemDetailPanel: React.FC = () => {
 
           <div className="drawer-divider" />
 
-          {/* Description Editor */}
+          {/* Subtasks Checklist Section */}
           <div className="section-block">
-            <h4 className="section-heading">Description & Specifications</h4>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <CheckSquare size={15} className="text-indigo-400" />
+                <h4 className="section-heading mb-0">Subtasks & Acceptance Checklist</h4>
+              </div>
+              <span className="text-xs font-mono text-slate-400">
+                {(selectedItem.subtasks || []).filter((s) => s.completed).length}/{(selectedItem.subtasks || []).length} done
+              </span>
+            </div>
+
+            <div className="space-y-1.5 my-2">
+              {(selectedItem.subtasks || []).map((subtask) => (
+                <div
+                  key={subtask.id}
+                  className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-900/40 border border-slate-800/60 hover:border-slate-700/80 cursor-pointer transition-colors"
+                  onClick={() => toggleSubtask(subtask.id)}
+                >
+                  {subtask.completed ? (
+                    <CheckSquare size={16} className="text-emerald-400 flex-shrink-0" />
+                  ) : (
+                    <Square size={16} className="text-slate-500 flex-shrink-0" />
+                  )}
+                  <span className={`text-xs ${subtask.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>
+                    {subtask.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Add Subtask Form */}
+            <form onSubmit={handleAddSubtask} className="flex items-center gap-2 mt-2">
+              <input
+                type="text"
+                className="input-field text-xs flex-1"
+                placeholder="＋ Add verifiable checklist item (press Enter)..."
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+              />
+              <button
+                type="submit"
+                className="btn btn-secondary btn-xs flex items-center gap-1"
+                disabled={!newSubtaskTitle.trim()}
+              >
+                <Plus size={12} />
+                <span>Add</span>
+              </button>
+            </form>
+          </div>
+
+          <div className="drawer-divider" />
+
+          {/* Description Editor with Fast Templates */}
+          <div className="section-block">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="section-heading mb-0">Description & Root Cause Analysis</h4>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs text-[11px] text-indigo-400"
+                  onClick={() => insertTemplate('bug')}
+                  title="Insert Bug Report Template"
+                >
+                  + Bug Template
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs text-[11px] text-amber-400"
+                  onClick={() => insertTemplate('incident')}
+                  title="Insert Incident Template"
+                >
+                  + Incident Triage
+                </button>
+              </div>
+            </div>
+
             <textarea
               id="detail-item-description"
               className="description-textarea"
-              placeholder="Add comprehensive specifications, acceptance criteria, or links..."
+              placeholder="Add comprehensive specifications, incident timeline, or reproduction steps..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={handleDescriptionBlur}
-              rows={4}
+              rows={5}
             />
           </div>
 
@@ -366,12 +587,38 @@ export const ItemDetailPanel: React.FC = () => {
 
           <div className="drawer-divider" />
 
-          {/* Activity Timeline */}
+          {/* Activity Timeline & Linked Commits */}
           <div className="section-block">
-            <div className="flex items-center gap-2 mb-3">
-              <History size={16} className="text-muted" />
-              <h4 className="section-heading mb-0">Activity History</h4>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <History size={16} className="text-muted" />
+                <h4 className="section-heading mb-0">Activity History</h4>
+              </div>
+              {gitHubCommits.some((c) => c.linked_ticket_number && c.linked_ticket_number.toUpperCase() === (selectedItem.ticket_number || '').toUpperCase()) && (
+                <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1">
+                  <GitCommit size={12} /> Linked Commits
+                </span>
+              )}
             </div>
+
+            {/* Linked GitHub Commits for this ticket */}
+            {gitHubCommits
+              .filter((c) => c.linked_ticket_number && c.linked_ticket_number.toUpperCase() === (selectedItem.ticket_number || '').toUpperCase())
+              .map((commit) => (
+                <div key={commit.id} className="p-2.5 mb-2.5 rounded-lg bg-emerald-500/[0.04] border border-emerald-500/20 flex flex-col gap-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-emerald-400 flex items-center gap-1">
+                      <GitCommit size={13} /> {commit.id}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">{commit.timestamp}</span>
+                  </div>
+                  <p className="text-slate-200 text-xs">{commit.message}</p>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 font-mono">
+                    <span>by {commit.author.name} on {commit.branch}</span>
+                    <a href={commit.url} target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline">View Commit &rarr;</a>
+                  </div>
+                </div>
+              ))}
 
             <div className="activity-timeline">
               {selectedItem.activities.map((act) => (
@@ -501,8 +748,9 @@ export const ItemDetailPanel: React.FC = () => {
 
         .item-title-input {
           width: 100%;
-          font-size: 20px;
-          font-weight: 800;
+          font-size: 18px;
+          font-weight: 700;
+          font-family: inherit;
           color: var(--text-primary);
           background: transparent;
           border: 1px solid transparent;
@@ -510,6 +758,8 @@ export const ItemDetailPanel: React.FC = () => {
           padding: 6px 8px;
           transition: all var(--transition-fast);
           letter-spacing: -0.015em;
+          resize: none;
+          line-height: 1.4;
         }
         .item-title-input:hover {
           border-color: var(--border-subtle);
@@ -533,9 +783,20 @@ export const ItemDetailPanel: React.FC = () => {
 
         .property-row {
           display: grid;
-          grid-template-columns: 100px 1fr;
+          grid-template-columns: 130px 1fr;
           align-items: center;
+          gap: 12px;
           font-size: 13px;
+        }
+
+        .you-pill {
+          font-size: 10px;
+          font-weight: 700;
+          color: var(--primary);
+          background: rgba(62, 207, 142, 0.15);
+          border: 1px solid rgba(62, 207, 142, 0.35);
+          padding: 2px 6px;
+          border-radius: 4px;
         }
 
         .property-label {

@@ -18,14 +18,15 @@ import {
   Megaphone,
   UserCheck
 } from 'lucide-react';
+import { AVAILABLE_ICONS, IconBadge } from '../common/IconBadge';
 
 export const OnboardingWizard: React.FC = () => {
   const { isOnboardingOpen, currentUser, completeOnboarding } = useApp();
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // Step 1: Profile
-  const [fullName, setFullName] = useState(currentUser?.full_name || 'Alex Rivera');
-  const [jobRole, setJobRole] = useState(currentUser?.job_role || 'Product Lead');
+  const [fullName, setFullName] = useState(currentUser?.full_name || 'Alex Mercer');
+  const [jobRole, setJobRole] = useState(currentUser?.job_role || 'Engineering Lead');
   const [avatarUrl, setAvatarUrl] = useState(
     currentUser?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
   );
@@ -35,8 +36,8 @@ export const OnboardingWizard: React.FC = () => {
 
   // Step 3: Workspace Setup & Invites
   const [workspaceName, setWorkspaceName] = useState('Acme Product Lab');
-  const [iconEmoji, setIconEmoji] = useState('⚡');
-  const [brandColor, setBrandColor] = useState('#6366f1');
+  const [iconEmoji, setIconEmoji] = useState('zap');
+  const [brandColor, setBrandColor] = useState('#3ecf8e');
   const [inviteInput, setInviteInput] = useState('');
   const [invitedEmails, setInvitedEmails] = useState<string[]>([
     'sarah.jenkins@happytf.dev',
@@ -84,8 +85,7 @@ export const OnboardingWizard: React.FC = () => {
     },
   ];
 
-  const emojis = ['⚡', '🚀', '🎯', '🎨', '🔥', '💡', '💎', '🛡️', '📦'];
-  const colors = ['#6366f1', '#a855f7', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9'];
+  const colors = ['#3ecf8e', '#24b47e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#64748b'];
 
   const handleAddEmail = () => {
     if (inviteInput.trim() && inviteInput.includes('@')) {
@@ -263,7 +263,9 @@ export const OnboardingWizard: React.FC = () => {
             <div className="form-group">
               <label htmlFor="wizard-ws-name">Workspace Name</label>
               <div className="ws-name-row">
-                <div className="emoji-badge" id="wizard-selected-emoji">{iconEmoji}</div>
+                <div className="emoji-badge" id="wizard-selected-emoji" style={{ color: brandColor }}>
+                  <IconBadge nameOrEmoji={iconEmoji} size={18} color={brandColor} />
+                </div>
                 <input
                   id="wizard-ws-name"
                   type="text"
@@ -279,16 +281,17 @@ export const OnboardingWizard: React.FC = () => {
             <div className="styling-row">
               <div className="style-col">
                 <label className="text-xs text-muted">Select Icon</label>
-                <div className="emoji-picker-row">
-                  {emojis.map((em) => (
+                <div className="icon-picker-row">
+                  {AVAILABLE_ICONS.map((ic) => (
                     <button
-                      key={em}
+                      key={ic.id}
                       type="button"
-                      className={`emoji-btn ${iconEmoji === em ? 'selected' : ''}`}
-                      onClick={() => setIconEmoji(em)}
-                      id={`emoji-btn-${encodeURIComponent(em)}`}
+                      className={`icon-choice-btn ${iconEmoji === ic.id ? 'selected' : ''}`}
+                      onClick={() => setIconEmoji(ic.id)}
+                      id={`icon-btn-${ic.id}`}
+                      title={ic.label}
                     >
-                      {em}
+                      <IconBadge nameOrEmoji={ic.id} size={14} />
                     </button>
                   ))}
                 </div>
@@ -604,11 +607,15 @@ export const OnboardingWizard: React.FC = () => {
         }
 
         .emoji-badge {
-          font-size: 24px;
-          padding: 6px 12px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 38px;
+          height: 38px;
           background: var(--bg-subtle);
           border: 1px solid var(--border-default);
-          border-radius: 10px;
+          border-radius: var(--radius-sm);
+          flex-shrink: 0;
         }
 
         .styling-row {
@@ -624,24 +631,33 @@ export const OnboardingWizard: React.FC = () => {
           gap: 6px;
         }
 
-        .emoji-picker-row, .color-picker-row {
+        .icon-picker-row, .color-picker-row {
           display: flex;
-          gap: 8px;
+          gap: 6px;
           flex-wrap: wrap;
         }
 
-        .emoji-btn {
-          font-size: 16px;
-          padding: 6px;
-          border-radius: 8px;
+        .icon-choice-btn {
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: var(--radius-sm);
           background: var(--bg-subtle);
           border: 1px solid var(--border-subtle);
-          transition: transform var(--transition-fast);
+          color: var(--text-secondary);
+          transition: all var(--transition-fast);
         }
-        .emoji-btn.selected {
+        .icon-choice-btn:hover {
+          color: var(--text-primary);
+          border-color: var(--border-highlight);
+          background: var(--bg-elevated);
+        }
+        .icon-choice-btn.selected {
           border-color: var(--primary);
-          background: var(--primary-glow);
-          transform: scale(1.1);
+          background: rgba(62, 207, 142, 0.18);
+          color: var(--primary);
         }
 
         .color-btn {

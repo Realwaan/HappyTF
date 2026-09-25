@@ -1,7 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { 
+  validateEmail, 
+  validatePassword, 
+  isSpamSubmission, 
+  createSubmissionThrottle 
+} from '../../lib/validation';
 import { 
   Lock, 
   Mail, 
@@ -28,33 +34,45 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
   const [email, setEmail] = useState('alex.rivera@happytf.dev');
   const [password, setPassword] = useState('HappyTF@2026!');
   const [rememberMe, setRememberMe] = useState(true);
+  const [honeypot, setHoneypot] = useState('');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const throttleRef = useRef(createSubmissionThrottle(1500));
+
   if (!isOpen) return null;
 
-  // Password strength calculator
-  const calculateStrength = (pwd: string) => {
-    let score = 0;
-    if (pwd.length >= 8) score += 25;
-    if (/[A-Z]/.test(pwd)) score += 25;
-    if (/[0-9]/.test(pwd)) score += 25;
-    if (/[^A-Za-z0-9]/.test(pwd)) score += 25;
-    return score;
-  };
-
-  const strengthScore = calculateStrength(password);
-  const strengthLabel = 
-    strengthScore <= 25 ? 'Weak' :
-    strengthScore <= 50 ? 'Fair' :
-    strengthScore <= 75 ? 'Good' : 'Strong';
-  const strengthColor = 
-    strengthScore <= 25 ? '#ef4444' :
-    strengthScore <= 50 ? '#f59e0b' :
-    strengthScore <= 75 ? '#3b82f6' : '#10b981';
+  const pwdAudit = validatePassword(password);
+  const strengthScore = pwdAudit.score;
+  const strengthLabel = pwdAudit.label;
+  const strengthColor = pwdAudit.color;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Anti-spam honeypot detection
+    if (isSpamSubmission(honeypot)) {
+      setStatusMessage({ type: 'success', text: 'Authentication processed.' });
+      return;
+    }
+
+    // 2. Click spam / rate limit throttle
+    const throttleCheck = throttleRef.current();
+    if (!throttleCheck.allowed) {
+      setStatusMessage({
+        type: 'error',
+        text: `Please wait ${Math.ceil(throttleCheck.waitTimeMs / 1000)}s before submitting again.`,
+      });
+      return;
+    }
+
+    // 3. Client email validation
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) {
+      setStatusMessage({ type: 'error', text: emailCheck.error || 'Invalid email address.' });
+      return;
+    }
+
     setIsSubmitting(true);
     setStatusMessage(null);
 
@@ -64,8 +82,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
         setStatusMessage({ type: 'success', text: 'Successfully authenticated!' });
         setTimeout(() => onClose?.(), 400);
       } else if (mode === 'signup') {
-        if (!fullName.trim()) {
-          setStatusMessage({ type: 'error', text: 'Please enter your full name.' });
+        if (!fullName.trim() || fullName.trim().length < 2) {
+          setStatusMessage({ type: 'error', text: 'Please enter your full name (at least 2 characters).' });
+          setIsSubmitting(false);
+          return;
+        }
+        if (!pwdAudit.isValid) {
+          setStatusMessage({ type: 'error', text: pwdAudit.error || 'Password does not meet security criteria.' });
           setIsSubmitting(false);
           return;
         }
@@ -260,27 +283,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
             </div>
           )}
 
-          {mode === 'login' && (
-            <div className="remember-row">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  id="auth-remember-me"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                />
-                <span>Remember me for 30 days</span>
-              </label>
-              <button
-                type="button"
-                className="auth-link text-xs"
-                onClick={() => setMode('magic')}
-                id="link-magic-login"
-              >
-                Magic Link Login
-              </button>
-            </div>
-          )}
+          {/* Anti-spam Honeypot Trap for Automated Bots */}
+          <div style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
+            <label htmlFor="b_company_verification">Do not fill this field</label>
+            <input
+              id="b_company_verification"
+              type="text"
+              name="b_company_verification"
+              value={honeypot}
+              onChange={(e) => setHoneypot(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="terms-disclaimer">
+            <span>By proceeding, you agree to our </span>
+            <a href="/terms" target="_blank" rel="noopener noreferrer" className="legal-anchor">
+              Terms of Service
+            </a>
+            <span> and </span>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="legal-anchor">
+              Privacy Policy
+            </a>
+            .
+          </div>
 
           <button
             id="auth-submit-btn"
@@ -545,6 +572,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
 
         .w-full {
           width: 100%;
+        }
+
+        .terms-disclaimer {
+          font-size: 11px;
+          line-height: 1.45;
+          color: var(--text-muted);
+          text-align: center;
+          margin-top: 4px;
+        }
+
+        .legal-anchor {
+          color: var(--primary-light);
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .legal-anchor:hover {
+          color: #ffffff;
         }
 
         .auth-footer {

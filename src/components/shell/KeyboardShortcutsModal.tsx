@@ -22,6 +22,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
     {
       name: 'Item Detail & Board Navigation',
       shortcuts: [
+        { keys: ['S'], desc: 'Quick cycle status (Working on it → Review → Done)' },
         { keys: ['↑'], desc: 'Navigate to Previous Item in panel' },
         { keys: ['↓'], desc: 'Navigate to Next Item in panel' },
         { keys: ['Enter'], desc: 'Create new item inline / Submit update' },
@@ -29,8 +30,11 @@ export const KeyboardShortcutsModal: React.FC = () => {
       ],
     },
     {
-      name: 'Quick Access & Preferences',
+      name: 'Creation & Quick Actions',
       shortcuts: [
+        { keys: ['C'], desc: 'Quick create new issue / task' },
+        { keys: ['B'], desc: 'Create new board modal' },
+        { keys: ['M'], desc: 'Inspect Workspace Memory & Context (/profile, /areas, /people)' },
         { keys: ['⌘', '/'], desc: 'Toggle shortcut cheat sheet' },
         { keys: ['Click Row'], desc: 'Open 520px Item Detail Drawer' },
       ],

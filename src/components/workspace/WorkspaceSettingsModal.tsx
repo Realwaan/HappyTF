@@ -17,12 +17,14 @@ import {
   LogOut,
   AlertTriangle
 } from 'lucide-react';
+import { AVAILABLE_ICONS, IconBadge } from '../common/IconBadge';
 
 export const WorkspaceSettingsModal: React.FC = () => {
   const { 
     isWorkspaceSettingsOpen, 
     setWorkspaceSettingsOpen, 
     currentWorkspace, 
+    workspaces, 
     updateWorkspace, 
     deleteWorkspace, 
     members, 
@@ -35,8 +37,8 @@ export const WorkspaceSettingsModal: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'general' | 'members' | 'danger'>(activeSettingsTab === 'danger' ? 'danger' : activeSettingsTab === 'members' ? 'members' : 'general');
   const [name, setName] = useState(currentWorkspace?.name || '');
-  const [iconEmoji, setIconEmoji] = useState(currentWorkspace?.icon_emoji || '⚡');
-  const [brandColor, setBrandColor] = useState(currentWorkspace?.brand_color || '#6366f1');
+  const [iconEmoji, setIconEmoji] = useState(currentWorkspace?.icon_emoji || 'zap');
+  const [brandColor, setBrandColor] = useState(currentWorkspace?.brand_color || '#3ecf8e');
 
   // Invite input state
   const [inviteEmail, setInviteEmail] = useState('');
@@ -46,8 +48,7 @@ export const WorkspaceSettingsModal: React.FC = () => {
 
   if (!isWorkspaceSettingsOpen || !currentWorkspace) return null;
 
-  const emojis = ['⚡', '🚀', '🎯', '🎨', '🔥', '📊', '🌐', '💡', '🛡️', '📦'];
-  const colors = ['#6366f1', '#a855f7', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9'];
+  const colors = ['#3ecf8e', '#24b47e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#64748b'];
 
   const handleSaveGeneral = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,7 +76,9 @@ export const WorkspaceSettingsModal: React.FC = () => {
         {/* Sidebar Nav inside settings */}
         <div className="settings-sidebar">
           <div className="settings-header">
-            <span className="ws-emoji">{currentWorkspace.icon_emoji}</span>
+            <div className="ws-settings-icon-box" style={{ color: currentWorkspace.brand_color }}>
+              <IconBadge nameOrEmoji={currentWorkspace.icon_emoji} size={18} color={currentWorkspace.brand_color} />
+            </div>
             <div className="ws-meta">
               <h3>{currentWorkspace.name}</h3>
               <span className="text-xs text-muted">Workspace Settings</span>
@@ -146,15 +149,16 @@ export const WorkspaceSettingsModal: React.FC = () => {
                 <div className="style-grid">
                   <div className="form-group">
                     <label>Workspace Icon</label>
-                    <div className="emoji-row">
-                      {emojis.map((em) => (
+                    <div className="icon-picker-grid">
+                      {AVAILABLE_ICONS.map((ic) => (
                         <button
-                          key={em}
+                          key={ic.id}
                           type="button"
-                          className={`emoji-btn ${iconEmoji === em ? 'selected' : ''}`}
-                          onClick={() => setIconEmoji(em)}
+                          className={`icon-choice-btn ${iconEmoji === ic.id ? 'selected' : ''}`}
+                          onClick={() => setIconEmoji(ic.id)}
+                          title={ic.label}
                         >
-                          {em}
+                          <IconBadge nameOrEmoji={ic.id} size={15} />
                         </button>
                       ))}
                     </div>
@@ -494,25 +498,46 @@ export const WorkspaceSettingsModal: React.FC = () => {
           gap: 20px;
         }
 
-        .emoji-row, .color-row {
+        .ws-settings-icon-box {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 36px;
+          height: 36px;
+          border-radius: var(--radius-sm);
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid var(--border-subtle);
+          flex-shrink: 0;
+        }
+
+        .icon-picker-grid, .color-row {
           display: flex;
           flex-wrap: wrap;
-          gap: 8px;
+          gap: 6px;
           margin-top: 6px;
         }
 
-        .emoji-btn {
-          font-size: 18px;
-          padding: 6px;
+        .icon-choice-btn {
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: var(--radius-sm);
           background: var(--bg-subtle);
           border: 1px solid var(--border-subtle);
-          border-radius: 8px;
-          transition: transform var(--transition-fast);
+          color: var(--text-secondary);
+          transition: all var(--transition-fast);
         }
-        .emoji-btn.selected {
+        .icon-choice-btn:hover {
+          color: var(--text-primary);
+          border-color: var(--border-highlight);
+          background: var(--bg-elevated);
+        }
+        .icon-choice-btn.selected {
           border-color: var(--primary);
-          background: var(--primary-glow);
-          transform: scale(1.1);
+          background: rgba(62, 207, 142, 0.18);
+          color: var(--primary);
         }
 
         .color-btn {

@@ -16,8 +16,11 @@ import {
   Filter, 
   Calendar,
   Check,
-  ChevronDown
+  ChevronDown,
+  Database
 } from 'lucide-react';
+import { IconBadge } from '../common/IconBadge';
+import { SprintVelocityChart } from '../analytics/SprintVelocityChart';
 
 export const MyWorkDashboard: React.FC = () => {
   const { 
@@ -25,12 +28,14 @@ export const MyWorkDashboard: React.FC = () => {
     currentWorkspace, 
     myWorkItems, 
     recentBoards, 
+    boardItems,
     updateWorkItemStatus, 
-    createBoard,
+    setCreateBoardOpen,
     setWorkspaceSettingsOpen,
     setOnboardingOpen,
     openItemDetail,
-    navigateToBoard
+    navigateToBoard,
+    setContextModalOpen
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'assigned' | 'recent'>('assigned');
@@ -57,24 +62,21 @@ export const MyWorkDashboard: React.FC = () => {
   ];
 
   const handleCreateNewBoard = () => {
-    const name = prompt('Enter new board title:');
-    if (name?.trim()) {
-      createBoard(name.trim(), '🎯', 'Created from My Work dashboard');
-    }
+    setCreateBoardOpen(true);
   };
 
   return (
     <div className="mywork-container animate-fade-in" id="mywork-dashboard">
-      {/* 1. Hero / Header Greeting */}
+      {/* 1. Hero / Header Overview */}
       <section className="mywork-hero">
         <div className="hero-text-col">
           <div className="hero-badge">
-            <Sparkles size={14} className="text-primary" />
-            <span>Workspace Operations Hub</span>
+            <Layers size={13} className="text-primary" />
+            <span>Sprint 24 · Active Cycle</span>
           </div>
-          <h1>Good day, {currentUser?.full_name?.split(' ')[0] || 'Team Lead'} 👋</h1>
+          <h1>Workspace Overview</h1>
           <p className="hero-subtext">
-            Here is your daily snapshot for <strong>{currentWorkspace?.name}</strong>. Track high-velocity deliverables, assigned tasks, and active boards.
+            <strong>{currentWorkspace?.name}</strong> · 8 days remaining in sprint · {totalAssigned} assigned deliverables across {activeBoardsCount} active boards.
           </p>
         </div>
 
@@ -82,19 +84,33 @@ export const MyWorkDashboard: React.FC = () => {
           <button
             id="hero-create-board-btn"
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary hero-primary-cta"
             onClick={handleCreateNewBoard}
+            aria-label="Create a new collaborative board"
           >
-            <Plus size={16} />
-            <span>Create Board</span>
+            <Plus size={15} />
+            <span className="font-semibold">New Board</span>
+            <kbd className="hero-cta-kbd font-mono">B</kbd>
+          </button>
+          <button
+            id="hero-context-btn"
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setContextModalOpen(true)}
+            aria-label="Inspect Workspace Memory & Context"
+          >
+            <Database size={15} />
+            <span>Workspace Memory</span>
+            <kbd className="hero-cta-kbd font-mono">M</kbd>
           </button>
           <button
             id="hero-invite-btn"
             type="button"
             className="btn btn-secondary"
             onClick={() => setWorkspaceSettingsOpen(true, 'members')}
+            aria-label="Invite team members to workspace"
           >
-            <Users size={16} />
+            <Users size={15} />
             <span>Invite Team</span>
           </button>
         </div>
@@ -146,6 +162,13 @@ export const MyWorkDashboard: React.FC = () => {
           <span className="metric-trend text-muted text-xs">{currentWorkspace?.name}</span>
         </div>
       </section>
+
+      {/* 2.5 Deterministic Sprint Velocity & Status Analytics (chart_display_v0 & ask_user_input_v0 pattern) */}
+      <SprintVelocityChart 
+        items={boardItems} 
+        onFilterPriority={setFilterPriority}
+        activePriorityFilter={filterPriority}
+      />
 
       {/* 3. Main Tabs: "Assigned to Me" & "Recently Visited Boards" */}
       <section className="content-section glass-panel">
@@ -226,9 +249,12 @@ export const MyWorkDashboard: React.FC = () => {
                   >
                     <div className="col-task">
                       <div className="item-title-group">
+                        <span className="issue-key-badge font-mono">
+                          #HTF-{item.id.replace('task-', '').padStart(3, '0')}
+                        </span>
                         <span className="item-title">{item.title}</span>
                         <span className="board-sub-pill">
-                          <Layers size={11} />
+                          <IconBadge nameOrEmoji={item.board_name.toLowerCase().includes('design') ? 'palette' : 'kanban'} size={11} />
                           {item.board_name}
                         </span>
                       </div>
@@ -322,8 +348,10 @@ export const MyWorkDashboard: React.FC = () => {
                     onClick={() => navigateToBoard(board.id)}
                   >
                     <div className="board-card-header">
-                      <span className="board-card-emoji">{board.icon_emoji}</span>
-                      <ExternalLink size={16} className="board-link-icon" />
+                      <div className="board-card-icon-box">
+                        <IconBadge nameOrEmoji={board.icon_emoji} size={18} />
+                      </div>
+                      <ExternalLink size={15} className="board-link-icon" />
                     </div>
 
                     <h4 className="board-card-name">{board.name}</h4>
@@ -336,7 +364,7 @@ export const MyWorkDashboard: React.FC = () => {
                           <img
                             key={idx}
                             src={av}
-                            alt="Member avatar"
+                            alt={`${board.name} team member ${idx + 1}`}
                             className="stacked-avatar"
                             style={{ zIndex: 10 - idx }}
                           />
@@ -413,6 +441,39 @@ export const MyWorkDashboard: React.FC = () => {
         .hero-actions {
           display: flex;
           gap: 12px;
+          align-items: center;
+        }
+
+        .hero-primary-cta {
+          background: var(--primary) !important;
+          color: var(--on-primary) !important;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 14px var(--primary-glow) !important;
+          border: 1px solid rgba(0, 0, 0, 0.15) !important;
+          font-weight: 600 !important;
+          letter-spacing: -0.01em;
+          transition: all var(--transition-fast);
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .hero-primary-cta svg {
+          color: var(--on-primary) !important;
+          stroke: var(--on-primary) !important;
+        }
+        .hero-primary-cta:hover {
+          background: var(--primary-hover) !important;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 16px rgba(62, 207, 142, 0.35) !important;
+        }
+
+        .hero-cta-kbd {
+          padding: 1px 5px;
+          border-radius: 4px;
+          background: rgba(0, 0, 0, 0.28);
+          font-size: 10px;
+          font-weight: 700;
+          color: inherit;
+          border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
         /* Metrics */
@@ -565,6 +626,13 @@ export const MyWorkDashboard: React.FC = () => {
           gap: 4px;
         }
 
+        .issue-key-badge {
+          font-size: 11px;
+          color: var(--text-muted);
+          letter-spacing: 0.02em;
+          font-weight: 600;
+        }
+
         .item-title {
           font-size: 13px;
           font-weight: 600;
@@ -680,12 +748,16 @@ export const MyWorkDashboard: React.FC = () => {
           margin-bottom: 14px;
         }
 
-        .board-card-emoji {
-          font-size: 26px;
-          padding: 8px;
-          background: var(--bg-subtle);
-          border-radius: 10px;
+        .board-card-icon-box {
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.04);
+          border-radius: var(--radius-sm);
           border: 1px solid var(--border-subtle);
+          color: var(--primary-light);
         }
 
         :global(.board-link-icon) {

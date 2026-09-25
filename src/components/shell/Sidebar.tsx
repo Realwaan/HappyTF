@@ -15,8 +15,11 @@ import {
   Sparkles, 
   Check, 
   FolderPlus,
-  Keyboard
+  Keyboard,
+  Folder,
+  FolderOpen
 } from 'lucide-react';
+import { IconBadge } from '../common/IconBadge';
 
 export const Sidebar: React.FC = () => {
   const { 
@@ -24,12 +27,18 @@ export const Sidebar: React.FC = () => {
     currentWorkspace, 
     switchWorkspace, 
     recentBoards, 
+    folders,
+    createFolder,
+    toggleFolderCollapse,
+    deleteFolder,
     isSidebarCollapsed, 
+    isMobileSidebarOpen,
+    setMobileSidebarOpen,
     toggleSidebar, 
     setCreateWorkspaceOpen, 
     setWorkspaceSettingsOpen,
     setOnboardingOpen,
-    createBoard,
+    setCreateBoardOpen,
     activeView,
     activeBoardId,
     navigateToBoard,
@@ -38,6 +47,8 @@ export const Sidebar: React.FC = () => {
   } = useApp();
 
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,18 +61,19 @@ export const Sidebar: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  const handleCreateBoardPrompt = () => {
-    const name = prompt('Name your new board:');
-    if (name?.trim()) {
-      createBoard(name.trim(), '📋', 'Workspace tracking board');
-    }
-  };
-
   return (
-    <aside 
-      className={`app-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}
-      id="app-sidebar"
-    >
+    <>
+      {isMobileSidebarOpen && (
+        <div 
+          className="sidebar-mobile-backdrop"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside 
+        className={`app-sidebar ${isSidebarCollapsed ? 'collapsed' : ''} ${isMobileSidebarOpen ? 'mobile-open' : ''}`}
+        id="app-sidebar"
+      >
       {/* 1. Workspace Switcher Header */}
       <div className="ws-switcher-container" ref={dropdownRef}>
         <button
@@ -74,11 +86,15 @@ export const Sidebar: React.FC = () => {
           <div 
             className="ws-icon-badge" 
             style={{ 
-              backgroundColor: currentWorkspace?.brand_color ? `${currentWorkspace.brand_color}25` : 'rgba(99, 102, 241, 0.2)',
-              borderColor: currentWorkspace?.brand_color || 'var(--primary)'
+              backgroundColor: currentWorkspace?.brand_color ? `${currentWorkspace.brand_color}18` : 'rgba(62, 207, 142, 0.15)',
+              borderColor: currentWorkspace?.brand_color ? `${currentWorkspace.brand_color}40` : 'var(--border-subtle)'
             }}
           >
-            <span>{currentWorkspace?.icon_emoji || '⚡'}</span>
+            <IconBadge 
+              nameOrEmoji={currentWorkspace?.icon_emoji || 'zap'} 
+              size={15} 
+              color={currentWorkspace?.brand_color || 'var(--primary)'} 
+            />
           </div>
           {!isSidebarCollapsed && (
             <div className="ws-text-col">
@@ -109,7 +125,9 @@ export const Sidebar: React.FC = () => {
                     setIsWsDropdownOpen(false);
                   }}
                 >
-                  <span className="ws-item-emoji">{ws.icon_emoji}</span>
+                  <div className="ws-item-icon-wrap" style={{ color: ws.brand_color || 'var(--primary)' }}>
+                    <IconBadge nameOrEmoji={ws.icon_emoji} size={15} color={ws.brand_color} />
+                  </div>
                   <div className="ws-item-info">
                     <span className="ws-item-name">{ws.name}</span>
                     <span className="text-xs text-muted">{ws.member_count || 1} members</span>
@@ -162,25 +180,131 @@ export const Sidebar: React.FC = () => {
           {!isSidebarCollapsed && <span>My Work</span>}
         </button>
 
-        {/* Boards Section */}
+        {/* Structural Hierarchy: Folders & Boards Section */}
         <div className="nav-group">
           {!isSidebarCollapsed && (
             <div className="nav-group-header">
-              <span className="group-title">BOARDS</span>
-              <button
-                id="sidebar-add-board-btn"
-                type="button"
-                className="icon-action-btn"
-                onClick={handleCreateBoardPrompt}
-                title="Add Board"
-              >
-                <Plus size={14} />
-              </button>
+              <span className="group-title">WORKSPACES & FOLDERS</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button
+                  type="button"
+                  className="icon-action-btn"
+                  onClick={() => setIsCreatingFolder(true)}
+                  title="New Folder"
+                >
+                  <FolderPlus size={14} />
+                </button>
+                <button
+                  id="sidebar-add-board-btn"
+                  type="button"
+                  className="icon-action-btn"
+                  onClick={() => setCreateBoardOpen(true)}
+                  title="Add Board"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isCreatingFolder && !isSidebarCollapsed && (
+            <div style={{ padding: '6px 8px', marginBottom: '8px', background: 'rgba(255,255,255,0.04)', borderRadius: '6px', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Folder size={13} style={{ color: '#3ecf8e', flexShrink: 0 }} />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Folder name..."
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newFolderName.trim()) {
+                    createFolder(newFolderName.trim());
+                    setNewFolderName('');
+                    setIsCreatingFolder(false);
+                  } else if (e.key === 'Escape') {
+                    setIsCreatingFolder(false);
+                  }
+                }}
+                style={{ background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: '11px', width: '100%' }}
+              />
             </div>
           )}
 
           <div className="boards-list">
-            {recentBoards.map((b) => (
+            {/* 1. Folders with nested boards */}
+            {folders.map((f) => {
+              const folderBoards = recentBoards.filter((b) => b.folder_id === f.id);
+              return (
+                <div key={f.id} className="sidebar-folder-node" style={{ marginBottom: '4px' }}>
+                  <div
+                    className="folder-tree-header"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '5px 8px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      color: 'var(--text-secondary)',
+                      transition: 'background 0.15s ease',
+                    }}
+                    onClick={() => toggleFolderCollapse(f.id)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {f.collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                      </span>
+                      <span style={{ color: f.color || '#3ecf8e' }}>
+                        {f.collapsed ? <Folder size={13} /> : <FolderOpen size={13} />}
+                      </span>
+                      {!isSidebarCollapsed && (
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {f.name}
+                        </span>
+                      )}
+                    </div>
+                    {!isSidebarCollapsed && (
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
+                        {folderBoards.length}
+                      </span>
+                    )}
+                  </div>
+
+                  {!f.collapsed && (
+                    <div style={{ paddingLeft: '14px', borderLeft: '1px solid rgba(255,255,255,0.08)', marginLeft: '12px', marginTop: '2px' }}>
+                      {folderBoards.map((b) => (
+                        <button
+                          key={b.id}
+                          id={`sidebar-board-${b.id}`}
+                          type="button"
+                          className={`board-nav-item ${activeBoardId === b.id && activeView === 'board' ? 'active' : ''}`}
+                          title={b.name}
+                          onClick={() => navigateToBoard(b.id)}
+                          style={{ margin: '1px 0' }}
+                        >
+                          <span className="board-icon-wrap">
+                            <IconBadge nameOrEmoji={b.icon_emoji} size={13} />
+                          </span>
+                          {!isSidebarCollapsed && (
+                            <span className="board-name">{b.name}</span>
+                          )}
+                        </button>
+                      ))}
+                      {folderBoards.length === 0 && !isSidebarCollapsed && (
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '4px 6px', fontStyle: 'italic' }}>
+                          No boards in folder
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* 2. Direct Boards (outside folders) */}
+            {recentBoards.filter((b) => !b.folder_id).map((b) => (
               <button
                 key={b.id}
                 id={`sidebar-board-${b.id}`}
@@ -189,7 +313,9 @@ export const Sidebar: React.FC = () => {
                 title={b.name}
                 onClick={() => navigateToBoard(b.id)}
               >
-                <span className="board-emoji">{b.icon_emoji}</span>
+                <span className="board-icon-wrap">
+                  <IconBadge nameOrEmoji={b.icon_emoji} size={14} />
+                </span>
                 {!isSidebarCollapsed && (
                   <span className="board-name">{b.name}</span>
                 )}
@@ -256,6 +382,24 @@ export const Sidebar: React.FC = () => {
           {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
       </div>
+
+      {/* Sub-footer Legal & Cookie Links */}
+      {!isSidebarCollapsed && (
+        <div className="sidebar-legal-bar">
+          <a href="/privacy" className="legal-link-mini" title="Privacy Policy">Privacy</a>
+          <span className="dot-sep">·</span>
+          <a href="/terms" className="legal-link-mini" title="Terms of Service">Terms</a>
+          <span className="dot-sep">·</span>
+          <button
+            type="button"
+            className="legal-btn-mini"
+            onClick={() => window.dispatchEvent(new CustomEvent('happytf:open_cookie_preferences'))}
+            title="Manage Cookie Preferences"
+          >
+            Cookies
+          </button>
+        </div>
+      )}
 
       <style jsx>{`
         .app-sidebar {
@@ -541,8 +685,29 @@ export const Sidebar: React.FC = () => {
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         }
 
-        .board-emoji {
-          font-size: 15px;
+        .board-icon-wrap {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-muted);
+          transition: color var(--transition-fast);
+        }
+        .board-nav-item:hover .board-icon-wrap {
+          color: var(--text-primary);
+        }
+        .board-nav-item.active .board-icon-wrap {
+          color: var(--primary-light);
+        }
+
+        .ws-item-icon-wrap {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid var(--border-subtle);
         }
 
         .board-name {
@@ -600,7 +765,48 @@ export const Sidebar: React.FC = () => {
           background: var(--bg-hover);
           color: var(--text-primary);
         }
+
+        .sidebar-legal-bar {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 8px 14px;
+          font-size: 11px;
+          color: var(--text-muted);
+          background: var(--bg-canvas);
+          border-top: 1px solid var(--border-subtle);
+        }
+
+        .legal-link-mini {
+          color: var(--text-muted);
+          text-decoration: none;
+          transition: color var(--transition-fast);
+        }
+        .legal-link-mini:hover {
+          color: var(--text-primary);
+          text-decoration: underline;
+        }
+
+        .legal-btn-mini {
+          background: transparent;
+          border: none;
+          padding: 0;
+          font-size: 11px;
+          color: var(--text-muted);
+          cursor: pointer;
+          transition: color var(--transition-fast);
+        }
+        .legal-btn-mini:hover {
+          color: var(--text-primary);
+          text-decoration: underline;
+        }
+
+        .dot-sep {
+          color: var(--border-default);
+        }
       `}</style>
     </aside>
+    </>
   );
 };

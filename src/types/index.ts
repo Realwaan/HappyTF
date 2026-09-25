@@ -58,13 +58,29 @@ export interface ActivityLog {
 export interface BoardSummary {
   id: string;
   workspace_id: string;
+  folder_id?: string;
   name: string;
   icon_emoji: string;
   description: string;
   item_count: number;
   updated_at: string;
   member_avatars: string[];
+  columns?: import('../lib/mondaydb/types').BoardColumn[];
 }
+
+export type {
+  BoardColumn,
+  ColumnOption,
+  ColumnType,
+  SubItem,
+  Folder,
+  StatusBatterySegment,
+  GroupAggregation,
+  BoardAggregation,
+  FilterCondition,
+  FilterOperator,
+  SortRule
+} from '../lib/mondaydb/types';
 
 export interface MyWorkItem {
   id: string;
@@ -107,7 +123,7 @@ export interface OnboardingState {
    Core Board Engine & View Models
    ========================================================================== */
 
-export type ViewMode = 'table' | 'kanban';
+export type ViewMode = 'table' | 'kanban' | 'timeline' | 'dashboard';
 
 export interface BoardGroup {
   id: string;
@@ -139,22 +155,73 @@ export interface ItemComment {
   reactions: ItemReaction[];
 }
 
+export interface SubTask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+export interface WorkspaceIntegration {
+  id: string;
+  workspace_id: string;
+  provider: 'slack' | 'monday' | 'custom_webhook';
+  webhook_url?: string;
+  bot_token?: string;
+  default_channel_id?: string;
+  notify_on_urgent: boolean;
+  notify_on_status_change: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface BoardItem {
   id: string;
   board_id: string;
   group_id: string;
+  ticket_number?: string;
   title: string;
   status: 'Working on it' | 'Stuck' | 'Done' | 'Pending' | 'In Review';
   status_color: string;
   priority: 'urgent' | 'high' | 'medium' | 'low';
+  severity?: 'critical' | 'major' | 'minor' | 'cosmetic';
   due_date: string;
+  sla_due_at?: string;
   assignee: {
     id: string;
     name: string;
     avatar: string;
   };
   tags: string[];
+  subtasks?: SubTask[];
+  sub_items?: import('../lib/mondaydb/types').SubItem[];
+  numbers_value?: number;
+  custom_values?: Record<string, string | number | boolean>;
   description?: string;
   activities: ItemActivity[];
   comments: ItemComment[];
+  external_source?: 'web' | 'slack' | 'monday' | 'email';
+  slack_channel_id?: string;
+  slack_thread_ts?: string;
+  monday_item_id?: string;
+  claimed_by?: string;
+  claimed_at?: string;
+  version?: number;
+  updated_at?: string;
+}
+
+export interface GitHubCommit {
+  id: string; // short sha e.g. 'c7a4e21'
+  full_sha?: string;
+  repo: string;
+  branch: string;
+  message: string;
+  url: string;
+  timestamp: string;
+  author: {
+    name: string;
+    username: string;
+    avatar: string;
+  };
+  linked_ticket_number?: string;
 }

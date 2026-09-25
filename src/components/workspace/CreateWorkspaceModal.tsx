@@ -2,18 +2,18 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Sparkles, Check, ArrowRight } from 'lucide-react';
+import { X, Layers, Check, ArrowRight } from 'lucide-react';
+import { AVAILABLE_ICONS, IconBadge } from '../common/IconBadge';
 
 export const CreateWorkspaceModal: React.FC = () => {
   const { isCreateWorkspaceOpen, setCreateWorkspaceOpen, createWorkspace } = useApp();
   const [name, setName] = useState('');
-  const [iconEmoji, setIconEmoji] = useState('💼');
-  const [brandColor, setBrandColor] = useState('#6366f1');
+  const [iconEmoji, setIconEmoji] = useState('briefcase');
+  const [brandColor, setBrandColor] = useState('#3ecf8e');
 
   if (!isCreateWorkspaceOpen) return null;
 
-  const emojis = ['💼', '🚀', '⚡', '🎯', '🎨', '🔥', '📊', '🌐', '💡', '🛡️'];
-  const colors = ['#6366f1', '#a855f7', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#64748b'];
+  const colors = ['#3ecf8e', '#24b47e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#64748b'];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +37,8 @@ export const CreateWorkspaceModal: React.FC = () => {
 
         <div className="modal-header">
           <div className="modal-badge">
-            <Sparkles size={14} />
-            <span>New Organization Hub</span>
+            <Layers size={13} />
+            <span>Workspace Setup</span>
           </div>
           <h2>Create Workspace</h2>
           <p className="text-secondary text-sm">
@@ -50,12 +50,14 @@ export const CreateWorkspaceModal: React.FC = () => {
           <div className="form-group">
             <label htmlFor="new-ws-name">Workspace Name</label>
             <div className="ws-name-input-group">
-              <span className="emoji-display">{iconEmoji}</span>
+              <div className="icon-display-box" style={{ color: brandColor }}>
+                <IconBadge nameOrEmoji={iconEmoji} size={18} color={brandColor} />
+              </div>
               <input
                 id="new-ws-name"
                 type="text"
                 className="input-field"
-                placeholder="e.g. Design & Creative Lab"
+                placeholder="e.g. Core Infrastructure & API"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
@@ -67,22 +69,23 @@ export const CreateWorkspaceModal: React.FC = () => {
           <div className="style-pickers">
             <div className="picker-col">
               <label className="text-xs text-muted">Workspace Icon</label>
-              <div className="emoji-list">
-                {emojis.map((em) => (
+              <div className="icon-picker-grid">
+                {AVAILABLE_ICONS.map((ic) => (
                   <button
-                    key={em}
+                    key={ic.id}
                     type="button"
-                    className={`emoji-btn ${iconEmoji === em ? 'selected' : ''}`}
-                    onClick={() => setIconEmoji(em)}
+                    className={`icon-choice-btn ${iconEmoji === ic.id ? 'selected' : ''}`}
+                    onClick={() => setIconEmoji(ic.id)}
+                    title={ic.label}
                   >
-                    {em}
+                    <IconBadge nameOrEmoji={ic.id} size={15} />
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="picker-col">
-              <label className="text-xs text-muted">Accent Theme</label>
+              <label className="text-xs text-muted">Accent Color</label>
               <div className="color-list">
                 {colors.map((c) => (
                   <button
@@ -206,12 +209,16 @@ export const CreateWorkspaceModal: React.FC = () => {
           gap: 10px;
         }
 
-        .emoji-display {
-          font-size: 22px;
-          padding: 7px 12px;
+        .icon-display-box {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 38px;
+          height: 38px;
           background: var(--bg-subtle);
           border: 1px solid var(--border-default);
-          border-radius: 10px;
+          border-radius: var(--radius-sm);
+          flex-shrink: 0;
         }
 
         .style-pickers {
@@ -226,24 +233,33 @@ export const CreateWorkspaceModal: React.FC = () => {
           gap: 8px;
         }
 
-        .emoji-list, .color-list {
+        .icon-picker-grid {
           display: flex;
           flex-wrap: wrap;
           gap: 6px;
         }
 
-        .emoji-btn {
-          font-size: 16px;
-          padding: 5px;
-          border-radius: 8px;
+        .icon-choice-btn {
+          width: 30px;
+          height: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: var(--radius-sm);
           background: var(--bg-subtle);
           border: 1px solid var(--border-subtle);
-          transition: transform var(--transition-fast);
+          color: var(--text-secondary);
+          transition: all var(--transition-fast);
         }
-        .emoji-btn.selected {
+        .icon-choice-btn:hover {
+          color: var(--text-primary);
+          border-color: var(--border-highlight);
+          background: var(--bg-elevated);
+        }
+        .icon-choice-btn.selected {
           border-color: var(--primary);
-          background: var(--primary-glow);
-          transform: scale(1.1);
+          background: rgba(62, 207, 142, 0.18);
+          color: var(--primary);
         }
 
         .color-btn {

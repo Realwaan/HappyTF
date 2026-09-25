@@ -12,10 +12,13 @@ import {
   Moon, 
   Sparkles, 
   Check, 
-  ArrowRight,
-  Hash,
-  X
+  ArrowRight, 
+  Hash, 
+  X,
+  CheckSquare,
+  Database
 } from 'lucide-react';
+import { IconBadge } from '../common/IconBadge';
 
 export const CommandPalette: React.FC = () => {
   const { 
@@ -26,12 +29,14 @@ export const CommandPalette: React.FC = () => {
     switchWorkspace, 
     recentBoards, 
     setCreateWorkspaceOpen, 
+    setCreateBoardOpen,
+    setQuickTaskOpen,
     setWorkspaceSettingsOpen, 
     setOnboardingOpen,
     toggleTheme, 
     theme,
-    createBoard,
-    navigateToBoard
+    navigateToBoard,
+    setContextModalOpen
   } = useApp();
 
   const [query, setQuery] = useState('');
@@ -54,7 +59,7 @@ export const CommandPalette: React.FC = () => {
     category: 'Boards',
     title: b.name,
     subtitle: `${b.item_count} items · updated ${b.updated_at}`,
-    icon: <span style={{ fontSize: 16 }}>{b.icon_emoji}</span>,
+    icon: <IconBadge nameOrEmoji={b.icon_emoji} size={15} />,
     action: () => {
       navigateToBoard(b.id);
       setCommandPaletteOpen(false);
@@ -66,7 +71,7 @@ export const CommandPalette: React.FC = () => {
     category: 'Switch Workspace',
     title: w.name,
     subtitle: `${w.member_count || 1} team members`,
-    icon: <span style={{ fontSize: 16 }}>{w.icon_emoji}</span>,
+    icon: <IconBadge nameOrEmoji={w.icon_emoji} size={15} color={w.brand_color} />,
     action: () => {
       switchWorkspace(w.id);
       setCommandPaletteOpen(false);
@@ -75,17 +80,36 @@ export const CommandPalette: React.FC = () => {
 
   const actionCommands = [
     {
+      id: 'action-create-task',
+      category: 'Actions',
+      title: 'Create New Issue',
+      subtitle: 'Draft and schedule a new task or deliverable (C)',
+      icon: <CheckSquare size={16} className="text-primary-light" />,
+      action: () => {
+        setCommandPaletteOpen(false);
+        setQuickTaskOpen(true);
+      },
+    },
+    {
       id: 'action-create-board',
       category: 'Actions',
       title: 'Create New Board',
-      subtitle: 'Add a new project or sprint tracker to this workspace',
+      subtitle: 'Add a new project or sprint tracker to this workspace (B)',
       icon: <LayoutGrid size={16} className="text-primary" />,
       action: () => {
-        const title = prompt('Enter new board name:');
-        if (title?.trim()) {
-          createBoard(title.trim(), '🎯', 'Created via Command Palette');
-        }
         setCommandPaletteOpen(false);
+        setCreateBoardOpen(true);
+      },
+    },
+    {
+      id: 'action-workspace-memory',
+      category: 'Actions',
+      title: 'Inspect Workspace Memory & Context',
+      subtitle: 'View structured domain taxonomy (/profile, /areas, /people) (M)',
+      icon: <Database size={16} className="text-emerald-400" />,
+      action: () => {
+        setCommandPaletteOpen(false);
+        setContextModalOpen(true);
       },
     },
     {

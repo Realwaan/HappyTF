@@ -10,15 +10,40 @@ import { OnboardingWizard } from '../onboarding/OnboardingWizard';
 import { CreateWorkspaceModal } from '../workspace/CreateWorkspaceModal';
 import { WorkspaceSettingsModal } from '../workspace/WorkspaceSettingsModal';
 import { ItemDetailPanel } from '../board/ItemDetailPanel';
+import { CreateBoardModal } from '../board/CreateBoardModal';
+import { QuickCreateTaskModal } from '../board/QuickCreateTaskModal';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
+import { WorkspaceContextModal } from './WorkspaceContextModal';
+import { SlackIntegrationModal } from '../workspace/SlackIntegrationModal';
 
 interface AppShellProps {
   children: React.ReactNode;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
-  const { currentUser } = useApp();
+  const { 
+    currentUser, 
+    isCreateBoardOpen, 
+    setCreateBoardOpen, 
+    isQuickTaskOpen, 
+    setQuickTaskOpen,
+    isContextModalOpen,
+    setContextModalOpen,
+    isSlackModalOpen,
+    setSlackModalOpen,
+    navigateToBoard
+  } = useApp();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Auto-join board if visited via an invite/join link (?join_board=xxx)
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const joinBoardId = params.get('join_board');
+    if (joinBoardId) {
+      navigateToBoard(joinBoardId);
+    }
+  }, [navigateToBoard]);
 
   return (
     <div className="app-shell-root" id="app-shell-container">
@@ -48,6 +73,22 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       <OnboardingWizard />
       <CreateWorkspaceModal />
       <WorkspaceSettingsModal />
+      <CreateBoardModal
+        isOpen={isCreateBoardOpen}
+        onClose={() => setCreateBoardOpen(false)}
+      />
+      <QuickCreateTaskModal
+        isOpen={isQuickTaskOpen}
+        onClose={() => setQuickTaskOpen(false)}
+      />
+      <WorkspaceContextModal
+        isOpen={isContextModalOpen}
+        onClose={() => setContextModalOpen(false)}
+      />
+      <SlackIntegrationModal
+        isOpen={isSlackModalOpen}
+        onClose={() => setSlackModalOpen(false)}
+      />
 
       <style jsx>{`
         .app-shell-root {
