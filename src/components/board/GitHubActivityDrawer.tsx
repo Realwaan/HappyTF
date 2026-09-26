@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { GitHubCommit } from '../../types';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { 
   GitBranch, 
   GitCommit, 
@@ -235,7 +236,7 @@ export const GitHubActivityDrawer: React.FC = () => {
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                       <img 
-                        src={commit.author.avatar} 
+                        src={getSafeAvatar(commit.author.avatar, commit.author.name)} 
                         alt={commit.author.name} 
                         className="w-5 h-5 rounded-full object-cover border border-white/15" 
                       />

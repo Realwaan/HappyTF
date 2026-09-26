@@ -22,11 +22,12 @@ interface WorkspaceContextModalProps {
 }
 
 export const WorkspaceContextModal: React.FC<WorkspaceContextModalProps> = ({ isOpen, onClose }) => {
-  const { currentWorkspace, currentUser, recentBoards, boardItems, members, theme } = useApp();
+  const { currentWorkspace, currentUser, recentBoards, allWorkspaceItems, members, theme } = useApp();
   const [activeTab, setActiveTab] = useState<'profile' | 'areas' | 'people' | 'preferences'>('profile');
   const [selectedAreaIndex, setSelectedAreaIndex] = useState(0);
   const [selectedPersonIndex, setSelectedPersonIndex] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [copiedAll, setCopiedAll] = useState(false);
 
   if (!isOpen) return null;
 
@@ -34,7 +35,7 @@ export const WorkspaceContextModal: React.FC<WorkspaceContextModalProps> = ({ is
     currentWorkspace,
     currentUser,
     recentBoards,
-    boardItems,
+    allWorkspaceItems,
     members,
     theme
   );
@@ -71,6 +72,31 @@ export const WorkspaceContextModal: React.FC<WorkspaceContextModalProps> = ({ is
     navigator.clipboard.writeText(markdown);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyAll = () => {
+    const allDocs = [
+      memory.profile,
+      ...memory.areas,
+      ...memory.people,
+      memory.preferences
+    ];
+    const fullText = allDocs.map((doc) => [
+      `=== FILE: ${doc.path} ===`,
+      `---`,
+      `name: ${doc.name}`,
+      `description: ${doc.description}`,
+      `sources: [${doc.sources.join(', ')}]`,
+      doc.aliases ? `aliases: [${doc.aliases.join(', ')}]` : null,
+      `---`,
+      ``,
+      ...doc.content,
+      ``,
+    ].filter(Boolean).join('\n')).join('\n\n');
+
+    navigator.clipboard.writeText(fullText);
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
   };
 
   return (
@@ -229,13 +255,23 @@ export const WorkspaceContextModal: React.FC<WorkspaceContextModalProps> = ({ is
           <span className="engine-version">
             HappyTF Grounded Workspace Memory Engine v1.0
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="footer-close-btn"
-          >
-            Close
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={handleCopyAll}
+              className="copy-all-btn"
+            >
+              {copiedAll ? <Check size={13} className="copy-check" /> : <Copy size={13} />}
+              <span>{copiedAll ? 'All Files Copied!' : 'Copy Full Context'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="footer-close-btn"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
 
@@ -540,6 +576,25 @@ export const WorkspaceContextModal: React.FC<WorkspaceContextModalProps> = ({ is
           font-size: 11px;
           font-family: var(--font-mono);
           color: var(--text-muted);
+        }
+
+        .copy-all-btn {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          font-size: 11px;
+          font-family: var(--font-mono);
+          border-radius: var(--radius-sm);
+          background: rgba(62, 207, 142, 0.12);
+          border: 1px solid rgba(62, 207, 142, 0.3);
+          color: var(--primary);
+          cursor: pointer;
+          transition: all var(--transition-fast);
+        }
+        .copy-all-btn:hover {
+          background: rgba(62, 207, 142, 0.2);
+          border-color: rgba(62, 207, 142, 0.5);
         }
 
         .footer-close-btn {

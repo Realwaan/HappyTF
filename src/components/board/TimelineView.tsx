@@ -3,6 +3,7 @@
 import React from 'react';
 import { BoardItem, BoardGroup } from '../../types';
 import { Calendar } from 'lucide-react';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 
 interface TimelineViewProps {
   groups: BoardGroup[];
@@ -111,8 +112,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ groups, items, onSel
                       {/* Left: Item Info */}
                       <div className="item-meta-col">
                         <img 
-                          src={item.assignee.avatar} 
-                          alt={item.assignee.name} 
+                          src={getSafeAvatar(item.assignee?.avatar, item.assignee?.name)} 
+                          alt={item.assignee?.name || 'Assignee'} 
                           className="item-assignee-avatar" 
                         />
                         <span className="item-name-text">

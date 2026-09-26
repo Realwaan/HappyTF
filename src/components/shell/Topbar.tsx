@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { NotificationsPopover } from './NotificationsPopover';
 import { 
   Search, 
@@ -17,7 +18,8 @@ import {
   Keyboard,
   Layers,
   Menu,
-  Plus
+  Plus,
+  PanelLeft
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
 
@@ -45,7 +47,9 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
     addBoardItem,
     navigateToHome,
     setShortcutsModalOpen,
-    toggleMobileSidebar
+    toggleMobileSidebar,
+    isSidebarCollapsed,
+    toggleSidebar
   } = useApp();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -75,6 +79,18 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           aria-label="Toggle mobile menu navigation"
         >
           <Menu size={18} />
+        </button>
+
+        {/* Desktop Sidebar Toggle Button */}
+        <button
+          id="topbar-desktop-sidebar-toggle"
+          type="button"
+          className="desktop-sidebar-toggle icon-tool-btn"
+          onClick={toggleSidebar}
+          title={isSidebarCollapsed ? "Expand Sidebar (Ctrl+\\)" : "Collapse Sidebar (Ctrl+\\)"}
+          aria-label="Toggle sidebar collapse"
+        >
+          <PanelLeft size={16} />
         </button>
 
         <div className="breadcrumb-pill">
@@ -120,83 +136,92 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
 
       {/* 3. Right: Actions & User Menu */}
       <div className="topbar-right">
-        {/* Standout Primary Call to Action (CTA) */}
-        <button
-          id="topbar-primary-cta"
-          type="button"
-          className="btn btn-primary btn-sm topbar-cta-btn"
-          onClick={() => {
-            if (activeView === 'board') {
-              setQuickTaskOpen(true);
-            } else {
-              setCreateBoardOpen(true);
-            }
-          }}
-          title={activeView === 'board' ? 'Create new task (C)' : 'Create new board (B)'}
-          aria-label={activeView === 'board' ? 'Create new task' : 'Create new board'}
-        >
-          <Plus size={14} />
-          <span className="cta-label font-semibold">
-            {activeView === 'board' ? 'New Issue' : 'New Board'}
-          </span>
-          <kbd className="topbar-cta-kbd font-mono">{activeView === 'board' ? 'C' : 'B'}</kbd>
-        </button>
-
-        {/* Quick Invite Button */}
-        <button
-          id="topbar-invite-btn"
-          type="button"
-          className="btn btn-secondary btn-sm"
-          onClick={() => setWorkspaceSettingsOpen(true, 'members')}
-          aria-label="Invite team members"
-        >
-          <UserPlus size={14} className="text-primary" />
-          <span>Invite</span>
-        </button>
-
-        {/* Keyboard Shortcuts Trigger */}
-        <button
-          id="topbar-shortcuts-btn"
-          type="button"
-          className="icon-tool-btn"
-          onClick={() => setShortcutsModalOpen(true)}
-          title="Keyboard Shortcuts (?)"
-          aria-label="Keyboard Shortcuts"
-        >
-          <Keyboard size={16} />
-        </button>
-
-        {/* Theme Toggle */}
-        <button
-          id="topbar-theme-toggle"
-          type="button"
-          className="icon-tool-btn"
-          onClick={toggleTheme}
-          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-          aria-label="Toggle theme"
-        >
-          {theme === 'dark' ? <Sun size={16} style={{ color: '#f59e0b' }} /> : <Moon size={16} style={{ color: '#6366f1' }} />}
-        </button>
-
-        {/* Notifications Bell */}
-        <div className="notifications-anchor">
+        {/* Primary Call-to-Action Group */}
+        <div className="topbar-cta-group">
           <button
-            id="topbar-notifications-btn"
+            id="topbar-primary-cta"
             type="button"
-            className="icon-tool-btn"
-            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-            title="Notifications"
-            aria-label="Open notifications"
+            className="btn btn-primary btn-sm topbar-cta-btn"
+            onClick={() => {
+              if (activeView === 'board') {
+                setQuickTaskOpen(true);
+              } else {
+                setCreateBoardOpen(true);
+              }
+            }}
+            title={activeView === 'board' ? 'Create new task (C)' : 'Create new board (B)'}
+            aria-label={activeView === 'board' ? 'Create new task' : 'Create new board'}
           >
-            <Bell size={16} />
-            {unreadCount > 0 && <span className="bell-badge font-mono">{unreadCount}</span>}
+            <Plus size={14} />
+            <span className="cta-label font-semibold">
+              {activeView === 'board' ? 'New Issue' : 'New Board'}
+            </span>
+            <kbd className="topbar-cta-kbd font-mono">{activeView === 'board' ? 'C' : 'B'}</kbd>
           </button>
 
-          <NotificationsPopover
-            isOpen={isNotificationsOpen}
-            onClose={() => setIsNotificationsOpen(false)}
-          />
+          {/* Quick Invite Button */}
+          <button
+            id="topbar-invite-btn"
+            type="button"
+            className="btn btn-secondary btn-sm topbar-invite-btn"
+            onClick={() => setWorkspaceSettingsOpen(true, 'members')}
+            aria-label="Invite team members"
+          >
+            <UserPlus size={14} className="text-primary" />
+            <span>Invite</span>
+          </button>
         </div>
+
+        <div className="topbar-v-divider" />
+
+        {/* Utility Tools Group */}
+        <div className="topbar-tools-group">
+          {/* Keyboard Shortcuts Trigger */}
+          <button
+            id="topbar-shortcuts-btn"
+            type="button"
+            className="icon-tool-btn"
+            onClick={() => setShortcutsModalOpen(true)}
+            title="Keyboard Shortcuts (?)"
+            aria-label="Keyboard Shortcuts"
+          >
+            <Keyboard size={16} />
+          </button>
+
+          {/* Theme Toggle */}
+          <button
+            id="topbar-theme-toggle"
+            type="button"
+            className="icon-tool-btn"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? <Sun size={16} style={{ color: '#f59e0b' }} /> : <Moon size={16} style={{ color: '#6366f1' }} />}
+          </button>
+
+          {/* Notifications Bell */}
+          <div className="notifications-anchor">
+            <button
+              id="topbar-notifications-btn"
+              type="button"
+              className="icon-tool-btn"
+              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              title="Notifications"
+              aria-label="Open notifications"
+            >
+              <Bell size={16} />
+              {unreadCount > 0 && <span className="bell-badge font-mono">{unreadCount}</span>}
+            </button>
+
+            <NotificationsPopover
+              isOpen={isNotificationsOpen}
+              onClose={() => setIsNotificationsOpen(false)}
+            />
+          </div>
+        </div>
+
+        <div className="topbar-v-divider" />
 
         {/* User Profile Avatar & Menu */}
         <div className="profile-anchor" ref={profileMenuRef}>
@@ -206,9 +231,11 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
               type="button"
               className="user-profile-btn"
               onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+              title={`${currentUser.full_name} (${currentUser.job_role || 'Member'})`}
+              aria-label="Open profile settings menu"
             >
               <img
-                src={currentUser.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                src={getSafeAvatar(currentUser.avatar_url, currentUser.full_name)}
                 alt={currentUser.full_name}
                 className="user-avatar"
               />
@@ -231,7 +258,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
             <div className="profile-dropdown-menu glass-panel animate-pop-in" id="profile-dropdown-menu">
               <div className="profile-card">
                 <img
-                  src={currentUser.avatar_url}
+                  src={getSafeAvatar(currentUser.avatar_url, currentUser.full_name)}
                   alt={currentUser.full_name}
                   className="dropdown-avatar"
                 />
@@ -321,6 +348,16 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           align-items: center;
         }
 
+        .desktop-sidebar-toggle {
+          margin-right: 8px;
+          display: flex;
+        }
+        @media (max-width: 768px) {
+          .desktop-sidebar-toggle {
+            display: none;
+          }
+        }
+
         .breadcrumb-pill {
           display: flex;
           align-items: center;
@@ -355,7 +392,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
         .topbar-center {
           flex: 1;
           max-width: 480px;
-          margin: 0 20px;
+          min-width: 160px;
+          margin: 0 16px;
         }
 
         .search-palette-trigger {
@@ -369,6 +407,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           border-radius: var(--radius-md);
           color: var(--text-muted);
           font-size: 13px;
+          white-space: nowrap;
+          overflow: hidden;
           transition: all var(--transition-fast);
         }
         .search-palette-trigger:hover {
@@ -380,6 +420,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
         .search-text {
           flex: 1;
           text-align: left;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-width: 0;
         }
 
         .kbd-shortcut {
@@ -399,7 +443,35 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
         .topbar-right {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
+        }
+
+        .topbar-cta-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .topbar-tools-group {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .topbar-v-divider {
+          width: 1px;
+          height: 20px;
+          background: var(--border-default);
+          margin: 0 4px;
+          opacity: 0.6;
+          flex-shrink: 0;
+        }
+
+        .topbar-invite-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-weight: 500;
         }
 
         .topbar-cta-btn {
@@ -475,6 +547,16 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           position: relative;
           padding: 2px;
           border-radius: 50%;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform var(--transition-fast);
+        }
+        .user-profile-btn:hover {
+          transform: scale(1.04);
         }
 
         .user-avatar {
@@ -482,11 +564,14 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           height: 32px;
           border-radius: 50%;
           object-fit: cover;
-          border: 2px solid var(--border-default);
-          transition: border-color var(--transition-fast);
+          border: 2px solid rgba(62, 207, 142, 0.5);
+          box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+          background-color: var(--bg-surface);
+          transition: all var(--transition-fast);
         }
         .user-profile-btn:hover .user-avatar {
           border-color: var(--primary);
+          box-shadow: 0 0 0 2px rgba(62, 207, 142, 0.35), 0 0 12px rgba(62, 207, 142, 0.3);
         }
 
         .online-dot {

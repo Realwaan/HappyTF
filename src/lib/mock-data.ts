@@ -49,7 +49,7 @@ export const DEMO_USER: UserProfile = {
   id: 'usr-demo-001',
   email: 'alex.rivera@happytf.dev',
   full_name: 'Alex Rivera',
-  avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&auto=format&fit=crop&crop=faces&q=85',
   job_role: 'Lead Product Architect',
   created_at: '2026-08-15T08:00:00Z',
 };

@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import '../styles/globals.css';
+import '../styles/shell.css';
 import { AppProvider } from '../context/AppContext';
 import { CookieConsentBanner } from '../components/common/CookieConsentBanner';
 import { AnalyticsProvider } from '../components/common/AnalyticsProvider';
+import StyledJsxRegistry from '../lib/registry';
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -110,12 +112,14 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body suppressHydrationWarning>
-        <AnalyticsProvider>
-          <AppProvider>
-            {children}
-            <CookieConsentBanner />
-          </AppProvider>
-        </AnalyticsProvider>
+        <StyledJsxRegistry>
+          <AnalyticsProvider>
+            <AppProvider>
+              {children}
+              <CookieConsentBanner />
+            </AppProvider>
+          </AnalyticsProvider>
+        </StyledJsxRegistry>
       </body>
     </html>
   );

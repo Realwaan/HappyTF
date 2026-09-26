@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { WorkspaceRole } from '../../types';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { 
   X, 
   Settings, 
@@ -254,7 +255,7 @@ export const WorkspaceSettingsModal: React.FC = () => {
                   <div key={member.id} className="member-row" id={`member-row-${member.id}`}>
                     <div className="member-info">
                       <img
-                        src={member.profile?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                        src={getSafeAvatar(member.profile?.avatar_url, member.profile?.full_name)}
                         alt={member.profile?.full_name || 'Member'}
                         className="member-avatar"
                       />

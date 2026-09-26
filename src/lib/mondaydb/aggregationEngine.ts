@@ -76,15 +76,13 @@ export function calculateGroupAggregation(groupId: string, items: BoardItem[]): 
       subItemsCompleted += subs.filter((st) => st.completed || ('status' in st && st.status === 'Done')).length;
     }
 
-    // Numbers calculation (use numbers_value if present, otherwise extract from ticket or default)
-    if (typeof item.numbers_value === 'number') {
-      numbersSum += item.numbers_value;
-    } else if (item.ticket_number) {
-      const match = item.ticket_number.match(/\d+/);
-      if (match) {
-        numbersSum += parseInt(match[0], 10) % 100; // normalized demo metric
-      }
-    }
+    // Numbers calculation (use numbers_value if present, default to 5 matching row display)
+    const pts = typeof item.numbers_value === 'number' 
+      ? item.numbers_value 
+      : (item.ticket_number && item.ticket_number.match(/\d+/) 
+          ? (parseInt(item.ticket_number.match(/\d+/)![0], 10) % 20) || 5 
+          : 5);
+    numbersSum += pts;
 
     if (item.due_date) {
       const d = new Date(item.due_date).getTime();
@@ -142,12 +140,12 @@ export function calculateBoardAggregation(items: BoardItem[]): BoardAggregation 
       totalSubItemsCompleted += subs.filter((st) => st.completed || ('status' in st && st.status === 'Done')).length;
     }
 
-    if (typeof item.numbers_value === 'number') {
-      totalNumbersSum += item.numbers_value;
-    } else if (item.ticket_number) {
-      const match = item.ticket_number.match(/\d+/);
-      if (match) totalNumbersSum += parseInt(match[0], 10) % 100;
-    }
+    const pts = typeof item.numbers_value === 'number' 
+      ? item.numbers_value 
+      : (item.ticket_number && item.ticket_number.match(/\d+/) 
+          ? (parseInt(item.ticket_number.match(/\d+/)![0], 10) % 20) || 5 
+          : 5);
+    totalNumbersSum += pts;
   });
 
   const overallProgressPercent = totalSubItems > 0

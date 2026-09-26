@@ -4,6 +4,7 @@ import React from 'react';
 import { BoardItem, BoardSummary } from '../../types';
 import { calculateBoardAggregation } from '../../lib/mondaydb';
 import { StatusBatteryBar } from './StatusBatteryBar';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { 
   PieChart, 
   TrendingUp, 
@@ -179,7 +180,7 @@ export const DashboardWidgetsView: React.FC<DashboardWidgetsViewProps> = ({ boar
               const completionPercent = stat.count > 0 ? Math.round((stat.doneCount / stat.count) * 100) : 0;
               return (
                 <div key={id} className="team-card">
-                  <img src={stat.avatar} alt={stat.name} className="member-avatar" />
+                  <img src={getSafeAvatar(stat.avatar, stat.name)} alt={stat.name} className="member-avatar" />
                   <div className="member-info">
                     <div className="member-header">
                       <span className="member-name">{stat.name}</span>

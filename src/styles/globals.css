@@ -141,6 +141,41 @@ html, body {
   overflow-x: hidden;
 }
 
+/* SaaS Full-Viewport Shell layout lock */
+html:has(.app-shell-root),
+body:has(.app-shell-root) {
+  height: 100%;
+  width: 100%;
+  overflow: hidden !important;
+}
+
+.app-shell-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+}
+
+.app-main-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 /* Accessibility Focus Ring */
 :focus-visible {
   outline: 2px solid var(--border-focus) !important;
@@ -371,10 +406,16 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: fit-content;
+  cursor: pointer;
+  user-select: none;
   border: 1px solid transparent;
   transition: all var(--transition-fast);
 }

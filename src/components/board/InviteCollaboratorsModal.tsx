@@ -13,13 +13,12 @@ import {
   Radio, 
   Sparkles,
   Zap,
-  Eye,
-  CheckCircle2,
   Trash2,
   RefreshCw
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PresenceUser, SIMULATED_TEAMMATES } from '../../lib/supabase/useRealtimeTickets';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 
 interface InviteCollaboratorsModalProps {
   isOpen: boolean;
@@ -59,11 +58,34 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
     currentUser?.full_name || 'Alex Rivera'
   )}`;
 
-  const handleCopyLink = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(joinUrl);
+  const handleCopyLink = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(joinUrl);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = joinUrl;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
+    } catch {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = joinUrl;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      } catch {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
     }
   };
 
@@ -86,9 +108,9 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
   };
 
   return (
-    <div className="modal-overlay" id="invite-collaborators-overlay" onClick={onClose}>
+    <div className="invite-modal-overlay animate-fade-in" id="invite-collaborators-overlay" onClick={onClose}>
       <div 
-        className="modal-card glass-panel animate-pop-in max-w-[620px] w-full max-h-[90vh] overflow-y-auto" 
+        className="invite-modal-card glass-panel animate-pop-in" 
         id="invite-collaborators-modal"
         onClick={(e) => e.stopPropagation()}
       >
@@ -96,34 +118,30 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
         <button
           id="close-invite-modal-btn"
           type="button"
-          className="modal-close-btn"
+          className="invite-close-btn"
           onClick={onClose}
           title="Close modal"
         >
-          <X size={18} />
+          <X size={17} />
         </button>
 
         {/* Modal Header */}
-        <div className="modal-header">
-          <div className="modal-badge flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono w-fit">
-            <Radio size={12} className="text-emerald-400 animate-pulse" />
+        <div className="invite-header">
+          <div className="invite-badge">
+            <Radio size={12} className="pulse-icon" />
             <span>Realtime Multi-User Engine</span>
           </div>
-          <h2 className="text-xl font-bold mt-2 text-white">Invite & Realtime Collaborators</h2>
-          <p className="text-secondary text-xs mt-1">
+          <h2 className="invite-title">Invite & Realtime Collaborators</h2>
+          <p className="invite-subtitle">
             Share this board with teammates or simulate live multiplayer presence in real-time.
           </p>
         </div>
 
         {/* Modal Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-white/10 pb-3 mb-5">
+        <div className="invite-tabs-bar">
           <button
             type="button"
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-              activeTab === 'link' 
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
+            className={`invite-tab-btn ${activeTab === 'link' ? 'active' : ''}`}
             onClick={() => setActiveTab('link')}
           >
             <Copy size={13} />
@@ -132,11 +150,7 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
 
           <button
             type="button"
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-              activeTab === 'email' 
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
+            className={`invite-tab-btn ${activeTab === 'email' ? 'active' : ''}`}
             onClick={() => setActiveTab('email')}
           >
             <Mail size={13} />
@@ -145,32 +159,28 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
 
           <button
             type="button"
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-              activeTab === 'presence' 
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
+            className={`invite-tab-btn ${activeTab === 'presence' ? 'active' : ''}`}
             onClick={() => setActiveTab('presence')}
           >
             <Users size={13} />
             <span>Live Presence ({onlineUsers.length})</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="live-dot" />
           </button>
         </div>
 
         {/* ================= TAB 1: SHARE JOIN LINK ================= */}
         {activeTab === 'link' && (
-          <div className="space-y-4">
-            <div className="bg-slate-900/60 border border-white/10 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <ShieldCheck size={14} className="text-emerald-400" />
+          <div className="tab-pane">
+            <div className="invite-box">
+              <div className="invite-row-split">
+                <label className="invite-field-label">
+                  <ShieldCheck size={14} className="text-primary" />
                   <span>Invite Link Permissions</span>
                 </label>
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value as any)}
-                  className="bg-slate-800 border border-slate-700 rounded-md text-xs text-slate-200 px-2.5 py-1 focus:outline-none focus:border-emerald-500"
+                  className="invite-select"
                 >
                   <option value="member">Member (Can edit tasks & sub-items)</option>
                   <option value="viewer">Viewer (Read-only access)</option>
@@ -178,21 +188,20 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
                 </select>
               </div>
 
-              <div className="relative flex items-center">
+              {/* Robust, Non-Overlapping Input Row */}
+              <div className="link-input-group">
                 <input
                   type="text"
                   readOnly
                   value={joinUrl}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-emerald-300 pr-24 select-all focus:outline-none focus:border-emerald-500"
+                  className="link-input-text"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
                 />
                 <button
                   type="button"
+                  id="invite-modal-copy-btn"
                   onClick={handleCopyLink}
-                  className={`absolute right-1.5 px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all ${
-                    copied 
-                      ? 'bg-emerald-500 text-black font-semibold' 
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  }`}
+                  className={`link-copy-button ${copied ? 'copied' : ''}`}
                 >
                   {copied ? (
                     <>
@@ -208,14 +217,14 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
                 </button>
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-slate-400">
+              <div className="invite-row-split meta-row">
+                <span className="hint-text">
                   Anyone with this URL joins this board and connects to your session in realtime.
                 </span>
                 <button
                   type="button"
                   onClick={handleOpenInNewTab}
-                  className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium hover:underline"
+                  className="open-tab-btn"
                 >
                   <span>Open in 2nd Tab to Test</span>
                   <ExternalLink size={12} />
@@ -223,13 +232,13 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
               </div>
             </div>
 
-            <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15 flex items-start gap-3">
-              <Zap size={16} className="text-emerald-400 shrink-0 mt-0.5" />
-              <div className="text-xs text-slate-300 space-y-1">
-                <p className="font-semibold text-emerald-300">Instant Multi-User Collaboration</p>
-                <p className="text-slate-400 text-[11px] leading-relaxed">
+            <div className="info-banner">
+              <Zap size={16} className="text-primary info-icon" />
+              <div className="info-text-col">
+                <div className="info-heading">Instant Multi-User Collaboration</div>
+                <div className="info-desc">
                   When a teammate or separate browser tab opens this link, presence is synchronized through Supabase WebSockets (or BroadcastChannel locally). Both participants see live ticket edits, claims, and active viewing indicators instantly.
-                </p>
+                </div>
               </div>
             </div>
           </div>
@@ -237,25 +246,25 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
 
         {/* ================= TAB 2: INVITE BY EMAIL ================= */}
         {activeTab === 'email' && (
-          <form onSubmit={handleSendEmailInvite} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300">Teammate Email Address</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Mail size={14} className="absolute left-3 top-3 text-slate-500" />
+          <form onSubmit={handleSendEmailInvite} className="tab-pane">
+            <div className="invite-box">
+              <label className="invite-field-label">Teammate Email Address</label>
+              <div className="email-input-row">
+                <div className="email-input-wrap">
+                  <Mail size={14} className="email-icon" />
                   <input
                     type="email"
                     required
                     placeholder="teammate@company.com"
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    className="email-input"
                   />
                 </div>
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value as any)}
-                  className="bg-slate-900 border border-white/10 rounded-lg text-xs text-slate-200 px-3 py-2 focus:outline-none focus:border-emerald-500"
+                  className="invite-select"
                 >
                   <option value="member">Member</option>
                   <option value="admin">Admin</option>
@@ -263,34 +272,34 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
                 </select>
                 <button
                   type="submit"
-                  className="btn btn-primary btn-sm flex items-center gap-1.5 text-xs font-semibold px-4 whitespace-nowrap"
+                  className="send-invite-btn"
                 >
                   <UserPlus size={13} />
                   <span>Send Invite</span>
                 </button>
               </div>
+
+              {emailSuccess && (
+                <div className="success-banner">
+                  <Check size={14} />
+                  <span>{emailSuccess}</span>
+                </div>
+              )}
             </div>
 
-            {emailSuccess && (
-              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-                <CheckCircle2 size={15} />
-                <span>{emailSuccess}</span>
-              </div>
-            )}
-
-            <div className="pt-2">
-              <p className="text-xs font-semibold text-slate-400 mb-2">Workspace Teammates in {currentWorkspace?.name || 'Workspace'}</p>
-              <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+            <div className="invite-box">
+              <div className="teammate-list-title">Workspace Members in {currentWorkspace?.name || 'Workspace'}</div>
+              <div className="teammates-scroll-list">
                 {onlineUsers.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <img src={user.avatar} alt={user.name} className="w-6 h-6 rounded-full object-cover" />
+                  <div key={user.id} className="teammate-row">
+                    <div className="teammate-info">
+                      <img src={getSafeAvatar(user.avatar, user.name)} alt={user.name} className="teammate-avatar" />
                       <div>
-                        <div className="font-medium text-white">{user.name}</div>
-                        <div className="text-[10px] text-slate-400">{user.email}</div>
+                        <div className="teammate-name">{user.name}</div>
+                        <div className="teammate-email">{user.email}</div>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-slate-800 text-slate-300">
+                    <span className="teammate-role-pill">
                       {user.role}
                     </span>
                   </div>
@@ -302,60 +311,52 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
 
         {/* ================= TAB 3: LIVE PRESENCE & SIMULATOR ================= */}
         {activeTab === 'presence' && (
-          <div className="space-y-5">
+          <div className="tab-pane">
             {/* Active Online Users Roster */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="invite-box">
+              <div className="invite-row-split" style={{ marginBottom: 10 }}>
+                <span className="invite-field-label">
+                  <span className="live-dot" />
                   <span>Currently Online on This Board ({onlineUsers.length})</span>
                 </span>
-                <span className="text-[11px] font-mono text-emerald-400">WebSocket / Realtime Sync</span>
+                <span className="realtime-status-pill">WebSocket / Realtime Sync</span>
               </div>
 
-              <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+              <div className="presence-scroll-list">
                 {onlineUsers.map((user) => {
                   const isCurrent = user.id === currentUser?.id;
                   return (
                     <div 
                       key={user.id} 
-                      className={`flex items-center justify-between p-2.5 rounded-lg border transition-all ${
-                        isCurrent 
-                          ? 'bg-emerald-500/10 border-emerald-500/30' 
-                          : 'bg-slate-900/60 border-white/10'
-                      }`}
+                      className={`presence-user-card ${isCurrent ? 'current-user' : ''}`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <div className="relative">
+                      <div className="presence-user-left">
+                        <div className="avatar-wrapper">
                           <img 
-                            src={user.avatar} 
+                            src={getSafeAvatar(user.avatar, user.name)} 
                             alt={user.name} 
-                            className="w-7 h-7 rounded-full object-cover border" 
+                            className="presence-avatar" 
                             style={{ borderColor: user.color }} 
                           />
                           <span 
-                            className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-black" 
+                            className="presence-dot" 
                             style={{ backgroundColor: user.color }} 
                           />
                         </div>
                         <div>
-                          <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                            <span>{user.name}</span>
+                          <div className="presence-name-row">
+                            <span className="presence-name">{user.name}</span>
                             {isCurrent && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300">
-                                YOU
-                              </span>
+                              <span className="you-badge">YOU</span>
                             )}
                             {user.isSimulated && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-purple-500/20 text-purple-300">
-                                SIMULATED
-                              </span>
+                              <span className="simulated-badge">SIMULATED</span>
                             )}
                           </div>
-                          <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                          <div className="presence-subtext">
                             <span>{user.role}</span>
                             {user.activeItemTitle && (
-                              <span className="text-emerald-400/90 font-mono">
+                              <span className="viewing-pill">
                                 • Viewing: {user.activeItemTitle}
                               </span>
                             )}
@@ -363,20 +364,18 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="presence-actions">
                         {user.isSimulated && (
                           <button
                             type="button"
                             onClick={() => onSimulateLeave(user.id)}
-                            className="text-xs text-rose-400 hover:text-rose-300 p-1 hover:bg-rose-500/10 rounded"
+                            className="disconnect-btn"
                             title="Disconnect simulated user"
                           >
                             <Trash2 size={13} />
                           </button>
                         )}
-                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                          Active Now
-                        </span>
+                        <span className="active-tag">Active Now</span>
                       </div>
                     </div>
                   );
@@ -385,28 +384,25 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
             </div>
 
             {/* Simulated Teammate Playground */}
-            <div className="pt-2 border-t border-white/10">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Sparkles size={13} className="text-purple-400" />
+            <div className="invite-box">
+              <div className="invite-row-split" style={{ marginBottom: 10 }}>
+                <span className="invite-field-label">
+                  <Sparkles size={13} className="text-purple" />
                   <span>Interactive Multi-User Simulator</span>
                 </span>
-                <span className="text-[11px] text-slate-400">Test presence without a 2nd computer</span>
+                <span className="hint-text">Test presence without a 2nd computer</span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="simulator-grid">
                 {SIMULATED_TEAMMATES.map((teammate) => {
                   const isOnline = onlineUsers.some((u) => u.id === teammate.id);
                   return (
-                    <div 
-                      key={teammate.id}
-                      className="p-2.5 rounded-lg bg-slate-900/80 border border-white/10 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <img src={teammate.avatar} alt={teammate.name} className="w-6 h-6 rounded-full object-cover" />
+                    <div key={teammate.id} className="simulator-card">
+                      <div className="simulator-card-left">
+                        <img src={getSafeAvatar(teammate.avatar, teammate.name)} alt={teammate.name} className="simulator-avatar" />
                         <div>
-                          <div className="text-xs font-medium text-white">{teammate.name}</div>
-                          <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{teammate.role}</div>
+                          <div className="simulator-name">{teammate.name}</div>
+                          <div className="simulator-role">{teammate.role}</div>
                         </div>
                       </div>
 
@@ -414,7 +410,7 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
                         <button
                           type="button"
                           onClick={() => onSimulateLeave(teammate.id)}
-                          className="px-2 py-1 rounded text-[10px] font-medium bg-rose-500/15 text-rose-400 border border-rose-500/25 hover:bg-rose-500/25 transition-all"
+                          className="sim-action-btn disconnect"
                         >
                           Disconnect
                         </button>
@@ -422,7 +418,7 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
                         <button
                           type="button"
                           onClick={() => onSimulateJoin(teammate)}
-                          className="px-2 py-1 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all"
+                          className="sim-action-btn join"
                         >
                           + Join Board
                         </button>
@@ -432,13 +428,13 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
                 })}
               </div>
 
-              <div className="mt-3 flex items-center justify-between">
+              <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
                 <button
                   type="button"
                   onClick={() => onBroadcastAction('status_change', 'Taylor Chen marked TK-1024 as Done')}
-                  className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1.5"
+                  className="broadcast-action-btn"
                 >
-                  <RefreshCw size={11} />
+                  <RefreshCw size={12} />
                   <span>Simulate Collaborative Action Broadcast</span>
                 </button>
               </div>
@@ -447,13 +443,13 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
         )}
 
         {/* Modal Footer */}
-        <div className="modal-actions mt-6 pt-3 border-t border-white/10 flex justify-between items-center">
-          <div className="text-[11px] font-mono text-slate-400">
-            Active Board: <span className="text-emerald-400 font-semibold">{activeBoard.name}</span>
+        <div className="invite-footer">
+          <div className="footer-board-label">
+            Active Board: <span className="board-name-highlight">{activeBoard.name}</span>
           </div>
           <button
             type="button"
-            className="btn btn-secondary btn-sm text-xs"
+            className="done-btn"
             onClick={onClose}
           >
             Done
@@ -462,7 +458,7 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
       </div>
 
       <style jsx>{`
-        .modal-overlay {
+        .invite-modal-overlay {
           position: fixed;
           inset: 0;
           background: rgba(4, 6, 12, 0.82);
@@ -475,17 +471,21 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
           padding: 20px;
         }
 
-        .modal-card {
+        .invite-modal-card {
           width: 100%;
-          background: #0b0f19;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          max-width: 620px;
+          max-height: 90vh;
+          overflow-y: auto;
+          background: #0d111d;
+          border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 18px;
           padding: 26px;
           position: relative;
           box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
+          color: #f8fafc;
         }
 
-        .modal-close-btn {
+        .invite-close-btn {
           position: absolute;
           top: 18px;
           right: 18px;
@@ -501,10 +501,648 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
           cursor: pointer;
           transition: all 0.15s ease;
         }
-
-        .modal-close-btn:hover {
+        .invite-close-btn:hover {
           background: rgba(255, 255, 255, 0.1);
           color: #ffffff;
+        }
+
+        .invite-header {
+          margin-bottom: 18px;
+        }
+
+        .invite-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 3px 10px;
+          border-radius: 9999px;
+          background: rgba(62, 207, 142, 0.12);
+          border: 1px solid rgba(62, 207, 142, 0.25);
+          color: #3ecf8e;
+          font-size: 11px;
+          font-family: var(--font-mono, monospace);
+        }
+
+        .pulse-icon {
+          animation: pulse 1.5s infinite;
+        }
+
+        .invite-title {
+          font-size: 20px;
+          font-weight: 700;
+          color: #ffffff;
+          margin: 8px 0 0 0;
+        }
+
+        .invite-subtitle {
+          font-size: 12px;
+          color: #94a3b8;
+          margin: 4px 0 0 0;
+        }
+
+        .invite-tabs-bar {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          padding-bottom: 12px;
+          margin-bottom: 18px;
+        }
+
+        .invite-tab-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #94a3b8;
+          background: transparent;
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .invite-tab-btn:hover {
+          color: #ffffff;
+          background: rgba(255, 255, 255, 0.05);
+        }
+        .invite-tab-btn.active {
+          background: rgba(62, 207, 142, 0.15);
+          color: #3ecf8e;
+          border-color: rgba(62, 207, 142, 0.3);
+        }
+
+        .live-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #3ecf8e;
+          box-shadow: 0 0 6px #3ecf8e;
+        }
+
+        .tab-pane {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .invite-box {
+          background: rgba(18, 24, 38, 0.65);
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          border-radius: 12px;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .invite-row-split {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .invite-field-label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #e2e8f0;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .invite-select {
+          background: #121826;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          border-radius: 6px;
+          padding: 6px 10px;
+          color: #f1f5f9;
+          font-size: 12px;
+          outline: none;
+          cursor: pointer;
+          transition: border-color 0.15s ease;
+        }
+        .invite-select:focus {
+          border-color: #3ecf8e;
+        }
+
+        /* Fixed Link Box: Clean, No Overlap Input Group */
+        .link-input-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(5, 7, 12, 0.85);
+          border: 1px solid rgba(62, 207, 142, 0.35);
+          border-radius: 8px;
+          padding: 5px 6px 5px 12px;
+          box-shadow: 0 0 16px rgba(62, 207, 142, 0.06);
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .link-input-group:focus-within {
+          border-color: #3ecf8e;
+          box-shadow: 0 0 0 2px rgba(62, 207, 142, 0.25);
+        }
+
+        .link-input-text {
+          flex: 1;
+          min-width: 0;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: #3ecf8e;
+          font-family: var(--font-mono, monospace);
+          font-size: 12px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          cursor: text;
+        }
+
+        .link-copy-button {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 14px;
+          font-size: 12px;
+          font-weight: 600;
+          border-radius: 6px;
+          background: #3ecf8e;
+          color: #0a0c10;
+          border: none;
+          cursor: pointer;
+          white-space: nowrap;
+          flex-shrink: 0;
+          transition: all 0.15s ease;
+          box-shadow: 0 2px 8px rgba(62, 207, 142, 0.3);
+        }
+        .link-copy-button:hover {
+          background: #24b47e;
+          transform: translateY(-1px);
+        }
+        .link-copy-button.copied {
+          background: #10b981;
+          color: #ffffff;
+        }
+
+        .meta-row {
+          padding-top: 2px;
+        }
+
+        .hint-text {
+          font-size: 11px;
+          color: #94a3b8;
+        }
+
+        .open-tab-btn {
+          font-size: 11px;
+          color: #3ecf8e;
+          background: transparent;
+          border: none;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          cursor: pointer;
+          font-weight: 500;
+          transition: color 0.15s ease;
+        }
+        .open-tab-btn:hover {
+          color: #4ade80;
+          text-decoration: underline;
+        }
+
+        .info-banner {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 12px 14px;
+          border-radius: 10px;
+          background: rgba(62, 207, 142, 0.06);
+          border: 1px solid rgba(62, 207, 142, 0.18);
+        }
+
+        .info-icon {
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
+        .info-text-col {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+
+        .info-heading {
+          font-size: 12px;
+          font-weight: 600;
+          color: #3ecf8e;
+        }
+
+        .info-desc {
+          font-size: 11px;
+          color: #94a3b8;
+          line-height: 1.45;
+        }
+
+        /* Tab 2: Email */
+        .email-input-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .email-input-wrap {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          position: relative;
+        }
+
+        .email-icon {
+          position: absolute;
+          left: 10px;
+          color: #64748b;
+          pointer-events: none;
+        }
+
+        .email-input {
+          width: 100%;
+          background: #121826;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          border-radius: 6px;
+          padding: 7px 12px 7px 32px;
+          color: #f1f5f9;
+          font-size: 12px;
+          outline: none;
+          transition: border-color 0.15s ease;
+        }
+        .email-input:focus {
+          border-color: #3ecf8e;
+        }
+
+        .send-invite-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 14px;
+          font-size: 12px;
+          font-weight: 600;
+          border-radius: 6px;
+          background: #3ecf8e;
+          color: #0a0c10;
+          border: none;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.15s ease;
+        }
+        .send-invite-btn:hover {
+          background: #24b47e;
+        }
+
+        .success-banner {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          border-radius: 6px;
+          background: rgba(62, 207, 142, 0.12);
+          border: 1px solid rgba(62, 207, 142, 0.3);
+          color: #3ecf8e;
+          font-size: 12px;
+        }
+
+        .teammate-list-title {
+          font-size: 11px;
+          font-weight: 600;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+        }
+
+        .teammates-scroll-list {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          max-height: 160px;
+          overflow-y: auto;
+        }
+
+        .teammate-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 10px;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .teammate-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .teammate-avatar {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          object-fit: cover;
+        }
+
+        .teammate-name {
+          font-size: 12px;
+          font-weight: 600;
+          color: #f1f5f9;
+        }
+
+        .teammate-email {
+          font-size: 10px;
+          color: #94a3b8;
+        }
+
+        .teammate-role-pill {
+          padding: 2px 7px;
+          border-radius: 4px;
+          font-size: 10px;
+          font-family: var(--font-mono, monospace);
+          text-transform: uppercase;
+          background: #1e293b;
+          color: #cbd5e1;
+        }
+
+        /* Tab 3: Presence */
+        .realtime-status-pill {
+          font-size: 11px;
+          font-family: var(--font-mono, monospace);
+          color: #3ecf8e;
+        }
+
+        .presence-scroll-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          max-height: 180px;
+          overflow-y: auto;
+        }
+
+        .presence-user-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 12px;
+          border-radius: 8px;
+          background: rgba(18, 24, 38, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          transition: all 0.15s ease;
+        }
+        .presence-user-card.current-user {
+          background: rgba(62, 207, 142, 0.08);
+          border-color: rgba(62, 207, 142, 0.25);
+        }
+
+        .presence-user-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .avatar-wrapper {
+          position: relative;
+        }
+
+        .presence-avatar {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 1.5px solid #3ecf8e;
+        }
+
+        .presence-dot {
+          position: absolute;
+          bottom: -1px;
+          right: -1px;
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          border: 2px solid #0d111d;
+        }
+
+        .presence-name-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .presence-name {
+          font-size: 12px;
+          font-weight: 600;
+          color: #ffffff;
+        }
+
+        .you-badge {
+          padding: 1px 5px;
+          border-radius: 4px;
+          font-size: 9px;
+          font-family: var(--font-mono, monospace);
+          font-weight: 700;
+          background: rgba(62, 207, 142, 0.2);
+          color: #3ecf8e;
+        }
+
+        .simulated-badge {
+          padding: 1px 5px;
+          border-radius: 4px;
+          font-size: 9px;
+          font-family: var(--font-mono, monospace);
+          background: rgba(168, 85, 247, 0.2);
+          color: #c084fc;
+        }
+
+        .presence-subtext {
+          font-size: 10px;
+          color: #94a3b8;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .viewing-pill {
+          color: #3ecf8e;
+          font-family: var(--font-mono, monospace);
+        }
+
+        .presence-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .disconnect-btn {
+          background: transparent;
+          border: none;
+          color: #fb7185;
+          cursor: pointer;
+          padding: 4px;
+          border-radius: 4px;
+          transition: all 0.15s ease;
+        }
+        .disconnect-btn:hover {
+          background: rgba(244, 63, 94, 0.15);
+        }
+
+        .active-tag {
+          font-size: 10px;
+          font-family: var(--font-mono, monospace);
+          color: #3ecf8e;
+          background: rgba(62, 207, 142, 0.12);
+          border: 1px solid rgba(62, 207, 142, 0.25);
+          padding: 2px 7px;
+          border-radius: 9999px;
+        }
+
+        /* Simulator Grid */
+        .simulator-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+
+        @media (max-width: 520px) {
+          .simulator-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .simulator-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 10px;
+          border-radius: 8px;
+          background: rgba(18, 24, 38, 0.85);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .simulator-card-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+        }
+
+        .simulator-avatar {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          object-fit: cover;
+          flex-shrink: 0;
+        }
+
+        .simulator-name {
+          font-size: 12px;
+          font-weight: 500;
+          color: #ffffff;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .simulator-role {
+          font-size: 10px;
+          color: #94a3b8;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .sim-action-btn {
+          font-size: 10px;
+          font-weight: 600;
+          padding: 4px 8px;
+          border-radius: 4px;
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          flex-shrink: 0;
+        }
+        .sim-action-btn.join {
+          background: rgba(62, 207, 142, 0.15);
+          color: #3ecf8e;
+          border-color: rgba(62, 207, 142, 0.3);
+        }
+        .sim-action-btn.join:hover {
+          background: rgba(62, 207, 142, 0.25);
+        }
+        .sim-action-btn.disconnect {
+          background: rgba(244, 63, 94, 0.15);
+          color: #fb7185;
+          border-color: rgba(244, 63, 94, 0.3);
+        }
+        .sim-action-btn.disconnect:hover {
+          background: rgba(244, 63, 94, 0.25);
+        }
+
+        .broadcast-action-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 11px;
+          color: #818cf8;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-weight: 500;
+          transition: color 0.15s ease;
+        }
+        .broadcast-action-btn:hover {
+          color: #a5b4fc;
+          text-decoration: underline;
+        }
+
+        .invite-footer {
+          margin-top: 20px;
+          padding-top: 14px;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .footer-board-label {
+          font-size: 11px;
+          font-family: var(--font-mono, monospace);
+          color: #94a3b8;
+        }
+
+        .board-name-highlight {
+          color: #3ecf8e;
+          font-weight: 600;
+        }
+
+        .done-btn {
+          padding: 6px 16px;
+          font-size: 12px;
+          font-weight: 500;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #f1f5f9;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .done-btn:hover {
+          background: rgba(255, 255, 255, 0.14);
+          color: #ffffff;
+        }
+
+        .text-primary {
+          color: #3ecf8e;
+        }
+        .text-purple {
+          color: #c084fc;
         }
       `}</style>
     </div>

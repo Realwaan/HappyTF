@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { 
   Sparkles, 
   Check, 
@@ -143,7 +144,7 @@ export const OnboardingWizard: React.FC = () => {
 
             <div className="avatar-selection-section">
               <div className="avatar-preview">
-                <img src={avatarUrl} alt="Avatar preview" id="wizard-avatar-preview" />
+                <img src={getSafeAvatar(avatarUrl, fullName)} alt="Avatar preview" id="wizard-avatar-preview" />
               </div>
               <div className="avatar-options">
                 <label className="text-xs text-muted">Choose your persona avatar</label>
@@ -156,7 +157,7 @@ export const OnboardingWizard: React.FC = () => {
                       onClick={() => setAvatarUrl(url)}
                       id={`avatar-choice-${i}`}
                     >
-                      <img src={url} alt={`Option ${i}`} />
+                      <img src={getSafeAvatar(url)} alt={`Option ${i}`} />
                     </button>
                   ))}
                 </div>

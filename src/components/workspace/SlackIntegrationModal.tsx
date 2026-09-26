@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check, Copy, ExternalLink, Send, ShieldCheck, Bell, MessageSquare, RefreshCw } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
@@ -16,10 +16,74 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({ is
   const [notifyUrgentOnly, setNotifyUrgentOnly] = useState(true);
   const [notifyStatusChange, setNotifyStatusChange] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
 
+  useEffect(() => {
+    if (!isOpen || !currentWorkspace) return;
+    const wsId = currentWorkspace.id;
+    try {
+      const local = localStorage.getItem(`happytf_slack_config_${wsId}`);
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (parsed.webhookUrl) setWebhookUrl(parsed.webhookUrl);
+        if (parsed.channelName) setChannelName(parsed.channelName);
+        if (parsed.notifyUrgentOnly !== undefined) setNotifyUrgentOnly(parsed.notifyUrgentOnly);
+        if (parsed.notifyStatusChange !== undefined) setNotifyStatusChange(parsed.notifyStatusChange);
+      }
+    } catch {}
+
+    fetch(`/api/integrations/slack?workspaceId=${wsId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.config) {
+          if (data.config.webhookUrl) setWebhookUrl(data.config.webhookUrl);
+          if (data.config.channelName) setChannelName(data.config.channelName);
+          if (data.config.notifyUrgentOnly !== undefined) setNotifyUrgentOnly(data.config.notifyUrgentOnly);
+          if (data.config.notifyStatusChange !== undefined) setNotifyStatusChange(data.config.notifyStatusChange);
+        }
+      })
+      .catch((err) => console.warn('Could not load remote slack config:', err));
+  }, [isOpen, currentWorkspace]);
+
   if (!isOpen) return null;
+
+  const handleSaveConfiguration = async () => {
+    if (!currentWorkspace) return;
+    setIsSaving(true);
+    const wsId = currentWorkspace.id;
+    const config = {
+      workspaceId: wsId,
+      webhookUrl: webhookUrl.trim(),
+      channelName: channelName.trim(),
+      notifyUrgentOnly,
+      notifyStatusChange,
+    };
+
+    try {
+      localStorage.setItem(`happytf_slack_config_${wsId}`, JSON.stringify(config));
+    } catch {}
+
+    try {
+      await fetch('/api/integrations/slack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        onClose();
+      }, 700);
+    } catch (err) {
+      console.error('Error saving slack config:', err);
+      onClose();
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleTestNotification = async () => {
     setIsTesting(true);
@@ -231,12 +295,14 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({ is
               Cancel
             </button>
             <button
+              id="save-slack-config-btn"
               type="button"
               className="btn btn-primary btn-sm flex items-center gap-1.5 cursor-pointer"
-              onClick={onClose}
+              onClick={handleSaveConfiguration}
+              disabled={isSaving}
             >
               <Check size={14} />
-              Save Configuration
+              <span>{isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Configuration'}</span>
             </button>
           </div>
         </div>

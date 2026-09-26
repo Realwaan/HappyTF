@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { X, CheckSquare, Plus, AlertCircle, Calendar, User } from 'lucide-react';
 
 interface QuickCreateTaskModalProps {
@@ -10,11 +11,12 @@ interface QuickCreateTaskModalProps {
 }
 
 export const QuickCreateTaskModal: React.FC<QuickCreateTaskModalProps> = ({ isOpen, onClose }) => {
-  const { boardGroups, addBoardItem, members, activeBoard } = useApp();
+  const { boardGroups, addBoardItem, members, activeBoard, currentUser } = useApp();
   const [title, setTitle] = useState('');
   const [groupId, setGroupId] = useState(boardGroups[0]?.id || '');
   const [priority, setPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>('medium');
-  const [assigneeId, setAssigneeId] = useState(members[0]?.user_id || '');
+  const [assigneeId, setAssigneeId] = useState(currentUser?.id || members[0]?.user_id || '');
+  const [dueDate, setDueDate] = useState('Next week');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -22,16 +24,32 @@ export const QuickCreateTaskModal: React.FC<QuickCreateTaskModalProps> = ({ isOp
       if (boardGroups.length > 0 && !groupId) {
         setGroupId(boardGroups[0].id);
       }
+      if (currentUser?.id && !assigneeId) {
+        setAssigneeId(currentUser.id);
+      }
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [isOpen, boardGroups, groupId]);
+  }, [isOpen, boardGroups, groupId, currentUser, assigneeId]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !groupId) return;
-    addBoardItem(groupId, title.trim());
+
+    const targetMember = members.find((m) => m.user_id === assigneeId || m.id === assigneeId);
+    const assignee = targetMember ? {
+      id: targetMember.user_id,
+      name: targetMember.profile?.full_name || 'Member',
+      avatar: getSafeAvatar(targetMember.profile?.avatar_url, targetMember.profile?.full_name),
+    } : undefined;
+
+    addBoardItem(groupId, title.trim(), {
+      priority,
+      assignee,
+      due_date: dueDate || 'Next week',
+    });
+
     setTitle('');
     onClose();
   };
@@ -102,6 +120,34 @@ export const QuickCreateTaskModal: React.FC<QuickCreateTaskModalProps> = ({ isOp
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
               </select>
+            </div>
+
+            <div className="meta-field">
+              <label htmlFor="select-assignee">Assignee</label>
+              <select
+                id="select-assignee"
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="select-input"
+              >
+                {members.map((m) => (
+                  <option key={m.id} value={m.user_id}>
+                    {m.profile?.full_name || 'Member'} ({m.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="meta-field">
+              <label htmlFor="input-due-date">Due Date</label>
+              <input
+                id="input-due-date"
+                type="text"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                placeholder="e.g. Tomorrow, Sep 30"
+                className="select-input"
+              />
             </div>
           </div>
 

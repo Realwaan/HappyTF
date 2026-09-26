@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { BoardItem, ViewMode } from '../../types';
 import { 
@@ -43,6 +43,7 @@ import {
   evaluateFormula 
 } from '../../lib/mondaydb';
 import { StatusBatteryBar } from './StatusBatteryBar';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { SubItemsTable } from './SubItemsTable';
 import { TimelineView } from './TimelineView';
 import { DashboardWidgetsView } from './DashboardWidgetsView';
@@ -71,6 +72,11 @@ export const BoardView: React.FC = () => {
     updateSubItem,
     deleteSubItem,
     selectedItem,
+    onTicketInsert,
+    onTicketUpdate,
+    onTicketDelete,
+    registerTicketBroadcaster,
+    registerTicketBroadcasters,
   } = useApp();
 
   const [isInviteModalOpen, setInviteModalOpen] = useState(false);
@@ -83,13 +89,38 @@ export const BoardView: React.FC = () => {
     simulateCollaboratorJoin,
     simulateCollaboratorLeave,
     broadcastAction,
+    broadcastTicketInsert,
+    broadcastTicketUpdate,
+    broadcastTicketDelete,
   } = useRealtimeTickets({
     workspaceId: currentWorkspace?.id || null,
     boardId: activeBoard?.id || null,
     currentUser,
     activeItemId: selectedItem?.id || null,
     activeItemTitle: selectedItem?.title || null,
+    onTicketInsert,
+    onTicketUpdate,
+    onTicketDelete,
   });
+
+  // Keep AppContext synced with the active Realtime board broadcasters
+  useEffect(() => {
+    if (registerTicketBroadcasters) {
+      registerTicketBroadcasters({
+        broadcastInsert: broadcastTicketInsert,
+        broadcastUpdate: broadcastTicketUpdate,
+        broadcastDelete: broadcastTicketDelete,
+      });
+    } else if (registerTicketBroadcaster && broadcastTicketUpdate) {
+      registerTicketBroadcaster(broadcastTicketUpdate);
+    }
+  }, [
+    registerTicketBroadcasters, 
+    registerTicketBroadcaster, 
+    broadcastTicketInsert, 
+    broadcastTicketUpdate, 
+    broadcastTicketDelete
+  ]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -102,6 +133,18 @@ export const BoardView: React.FC = () => {
   const toggleSubItemExpand = (itemId: string) => {
     setExpandedSubItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   };
+
+  useEffect(() => {
+    if (!activeInlineStatusId) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.dropdown-popover') && !target.closest('.status-badge')) {
+        setActiveInlineStatusId(null);
+      }
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, [activeInlineStatusId]);
 
   const handleAddInlineItem = (groupId: string) => {
     const title = (newRowTitle[groupId] || '').trim();
@@ -289,7 +332,7 @@ export const BoardView: React.FC = () => {
                 onlineUsers.map((user, i) => (
                   <div key={user.id} className="stacked-avatar-wrapper" style={{ zIndex: 10 - i, marginLeft: i > 0 ? '-8px' : 0 }}>
                     <img 
-                      src={user.avatar} 
+                      src={getSafeAvatar(user.avatar, user.name)} 
                       alt={user.name} 
                       className="stacked-avatar" 
                       style={{ borderColor: user.color || '#3ecf8e' }} 
@@ -303,7 +346,7 @@ export const BoardView: React.FC = () => {
                 ))
               ) : (
                 activeBoard.member_avatars.map((av, i) => (
-                  <img key={i} src={av} alt={`Collaborator ${i + 1}`} className="stacked-avatar" style={{ zIndex: 10 - i }} />
+                  <img key={i} src={getSafeAvatar(av)} alt={`Collaborator ${i + 1}`} className="stacked-avatar" style={{ zIndex: 10 - i }} />
                 ))
               )}
             </div>
@@ -391,9 +434,19 @@ export const BoardView: React.FC = () => {
             {boardGroups.map((group) => {
               const groupItems = filteredItems.filter((i) => i.group_id === group.id);
               const groupAgg = calculateGroupAggregation(group.id, filteredItems);
+              const isGroupActive = groupItems.some((i) => i.id === activeInlineStatusId);
 
               return (
-                <div key={group.id} className="group-card glass-panel" id={`group-section-${group.id}`} style={{ marginBottom: '24px' }}>
+                <div 
+                  key={group.id} 
+                  className={`group-card glass-panel ${isGroupActive ? 'has-active-dropdown' : ''}`} 
+                  id={`group-section-${group.id}`} 
+                  style={{ 
+                    marginBottom: '24px',
+                    zIndex: isGroupActive ? 60 : 1,
+                    position: 'relative'
+                  }}
+                >
                   {/* Group Header */}
                   <div className="group-header flex items-center justify-between">
                     <button
@@ -412,7 +465,7 @@ export const BoardView: React.FC = () => {
                   {!group.collapsed && (
                     <div className="group-table-content">
                       {/* Column Header Grid */}
-                      <div className="table-header-grid" style={{ gridTemplateColumns: 'minmax(280px, 1.8fr) 130px 140px 95px 110px 85px 120px 95px' }}>
+                      <div className="table-header-grid" style={{ gridTemplateColumns: 'minmax(280px, 1.8fr) 155px 150px 95px 115px 85px 115px 95px' }}>
                         <div className="col-name">TASK / SUMMARY</div>
                         <div className="col-status">STATUS</div>
                         <div className="col-assignee">ASSIGNEE</div>
@@ -434,12 +487,17 @@ export const BoardView: React.FC = () => {
                           const subItemCount = subItemsList.length;
                           const pointsVal = item.numbers_value || 5;
                           const formulaVal = evaluateFormula('{Story Pts} * 1.5', { 'Story Pts': pointsVal });
+                          const isRowActive = activeInlineStatusId === item.id;
 
                           return (
                             <div key={item.id} className="flex flex-col border-b border-slate-800/60">
                               <div
                                 className="table-row"
-                                style={{ gridTemplateColumns: 'minmax(280px, 1.8fr) 130px 140px 95px 110px 85px 120px 95px' }}
+                                style={{ 
+                                  gridTemplateColumns: 'minmax(280px, 1.8fr) 155px 150px 95px 115px 85px 115px 95px',
+                                  zIndex: isRowActive ? 70 : 1,
+                                  position: 'relative'
+                                }}
                                 id={`board-item-row-${item.id}`}
                                 onClick={() => openItemDetail(item)}
                               >
@@ -478,7 +536,14 @@ export const BoardView: React.FC = () => {
                                 </div>
 
                                 {/* Status Chip */}
-                                <div className="col-status" onClick={(e) => e.stopPropagation()}>
+                                <div 
+                                  className="col-status" 
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    zIndex: isRowActive ? 80 : 1,
+                                    position: 'relative'
+                                  }}
+                                >
                                   <div className="relative">
                                     <button
                                       type="button"
@@ -519,8 +584,8 @@ export const BoardView: React.FC = () => {
                                 {/* Assignee & Claim Action */}
                                 <div className="col-assignee">
                                   <div className="assignee-pill">
-                                    <img src={item.assignee.avatar} alt={item.assignee.name} className="mini-avatar" />
-                                    <span className="assignee-text truncate">{item.assignee.name}</span>
+                                    <img src={getSafeAvatar(item.assignee?.avatar, item.assignee?.name)} alt={item.assignee?.name || 'Assignee'} className="mini-avatar" />
+                                    <span className="assignee-text truncate">{item.assignee?.name || 'Unassigned'}</span>
                                   </div>
                                   {item.assignee.id !== currentUser?.id ? (
                                     <button
@@ -621,26 +686,26 @@ export const BoardView: React.FC = () => {
                       </div>
 
                       {/* mondayDB Group Summary Footer */}
-                      <div className="group-summary-footer p-2.5 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-xs rounded-b-lg">
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider">Group Status:</span>
-                          <div className="w-52">
+                      <div className="group-summary-footer">
+                        <div className="footer-status-group">
+                          <span className="footer-status-label">Group Status:</span>
+                          <div className="footer-battery-wrap">
                             <StatusBatteryBar segments={groupAgg.statusBattery} height={14} />
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 font-mono text-[11px] text-slate-300">
-                          <div>
-                            <span className="text-slate-500 mr-1.5">Sum:</span>
-                            <strong className="text-white">{groupAgg.numbersSum} pts</strong>
+                        <div className="footer-metrics-group">
+                          <div className="footer-metric-item">
+                            <span className="footer-metric-label">Sum:</span>
+                            <strong className="footer-metric-val">{groupAgg.numbersSum} pts</strong>
                           </div>
-                          <div>
-                            <span className="text-slate-500 mr-1.5">Avg:</span>
-                            <strong className="text-white">{groupAgg.numbersAvg} pts</strong>
+                          <div className="footer-metric-item">
+                            <span className="footer-metric-label">Avg:</span>
+                            <strong className="footer-metric-val">{groupAgg.numbersAvg} pts</strong>
                           </div>
                           {groupAgg.subItemCount > 0 && (
-                            <div>
-                              <span className="text-slate-500 mr-1.5">Sub-items:</span>
-                              <strong className="text-emerald-400">{groupAgg.subItemsCompleted}/{groupAgg.subItemCount} ({groupAgg.subItemProgressPercent}%)</strong>
+                            <div className="footer-metric-item">
+                              <span className="footer-metric-label">Sub-items:</span>
+                              <strong className="footer-metric-emerald">{groupAgg.subItemsCompleted}/{groupAgg.subItemCount} ({groupAgg.subItemProgressPercent}%)</strong>
                             </div>
                           )}
                         </div>
@@ -652,28 +717,28 @@ export const BoardView: React.FC = () => {
             })}
 
             {/* Overall Board Battery & mondayDB Summary */}
-            <div className="board-summary-footer p-4 rounded-xl bg-slate-900/80 border border-slate-800 shadow-xl flex items-center justify-between mt-4">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
+            <div className="board-summary-footer">
+              <div className="board-summary-left">
+                <div className="board-battery-title">
                   <PieChart size={16} className="text-emerald-400" />
-                  <span className="text-xs font-semibold text-white uppercase font-mono">Overall Board Battery</span>
+                  <span className="board-battery-label font-mono">Overall Board Battery</span>
                 </div>
-                <div className="w-64">
+                <div className="board-battery-wrap">
                   <StatusBatteryBar segments={boardAgg.statusBattery} height={18} />
                 </div>
               </div>
-              <div className="flex items-center gap-6 font-mono text-xs text-slate-300">
-                <div>
-                  <span className="text-slate-500 mr-1.5">Total Tasks:</span>
-                  <strong className="text-white">{boardAgg.totalItems}</strong>
+              <div className="board-metrics-right font-mono">
+                <div className="board-metric-item">
+                  <span className="footer-metric-label">Total Tasks:</span>
+                  <strong className="footer-metric-val">{boardAgg.totalItems}</strong>
                 </div>
-                <div>
-                  <span className="text-slate-500 mr-1.5">Total Velocity:</span>
-                  <strong className="text-indigo-400">{boardAgg.totalNumbersSum} pts</strong>
+                <div className="board-metric-item">
+                  <span className="footer-metric-label">Total Velocity:</span>
+                  <strong className="footer-metric-indigo">{boardAgg.totalNumbersSum} pts</strong>
                 </div>
-                <div>
-                  <span className="text-slate-500 mr-1.5">Sub-Tasks Done:</span>
-                  <strong className="text-emerald-400">{boardAgg.totalSubItemsCompleted}/{boardAgg.totalSubItems} ({boardAgg.overallProgressPercent}%)</strong>
+                <div className="board-metric-item">
+                  <span className="footer-metric-label">Sub-Tasks Done:</span>
+                  <strong className="footer-metric-emerald">{boardAgg.totalSubItemsCompleted}/{boardAgg.totalSubItems} ({boardAgg.overallProgressPercent}%)</strong>
                 </div>
               </div>
             </div>
@@ -756,8 +821,8 @@ export const BoardView: React.FC = () => {
                           <div className="card-footer">
                             <div className="flex items-center gap-2">
                               <div className="card-assignee">
-                                <img src={card.assignee.avatar} alt={card.assignee.name} className="mini-avatar" />
-                                <span>{card.assignee.name}</span>
+                                <img src={getSafeAvatar(card.assignee?.avatar, card.assignee?.name)} alt={card.assignee?.name || 'Assignee'} className="mini-avatar" />
+                                <span>{card.assignee?.name || 'Unassigned'}</span>
                               </div>
                               {card.assignee.id !== currentUser?.id && (
                                 <button
@@ -820,30 +885,32 @@ export const BoardView: React.FC = () => {
 
       {/* Realtime Collaborator Join & Activity Floating Toasts */}
       {notifications.length > 0 && (
-        <div className="fixed top-20 right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-sm">
+        <div className="collaborator-toast-container" id="collaborator-toasts">
           {notifications.map((n) => (
             <div 
               key={n.id}
-              className="pointer-events-auto p-3 rounded-xl bg-slate-900/95 backdrop-blur-md border border-white/10 shadow-2xl flex items-center gap-3 animate-fade-in text-xs"
-              style={{ borderLeft: `3px solid ${n.userColor || '#3ecf8e'}` }}
+              className="collaborator-toast-card"
+              style={{ borderLeftColor: n.userColor || 'var(--primary)' }}
             >
-              <img 
-                src={n.userAvatar} 
-                alt={n.userName} 
-                className="w-7 h-7 rounded-full object-cover shrink-0 border" 
-                style={{ borderColor: n.userColor || '#3ecf8e' }} 
-              />
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-white truncate flex items-center gap-1.5">
+              <div className="toast-avatar-box">
+                <img 
+                  src={getSafeAvatar(n.userAvatar, n.userName)} 
+                  alt={n.userName} 
+                  className="toast-avatar-img" 
+                  style={{ borderColor: n.userColor || 'var(--primary)' }} 
+                />
+                <span className="toast-live-dot" style={{ backgroundColor: n.userColor || 'var(--primary)' }} />
+              </div>
+              <div className="toast-content-col">
+                <div className="toast-user-name">
                   <span>{n.userName}</span>
-                  <span className="w-1.5 h-1.5 rounded-full animate-ping" style={{ backgroundColor: n.userColor || '#3ecf8e' }} />
                 </div>
-                <div className="text-[11px] text-slate-300 leading-tight">{n.message}</div>
+                <div className="toast-message-text">{n.message}</div>
               </div>
               <button 
                 type="button"
                 onClick={() => dismissNotification(n.id)}
-                className="text-slate-400 hover:text-white p-1"
+                className="toast-dismiss-btn"
                 title="Dismiss notification"
               >
                 <X size={12} />
@@ -1070,8 +1137,8 @@ export const BoardView: React.FC = () => {
         .group-card {
           border-radius: 12px;
           border: 1px solid var(--border-default);
-          overflow: hidden;
           background: var(--bg-surface);
+          position: relative;
         }
 
         .group-header {
@@ -1081,6 +1148,8 @@ export const BoardView: React.FC = () => {
           padding: 12px 18px;
           background: var(--bg-subtle);
           border-bottom: 1px solid var(--border-subtle);
+          border-top-left-radius: 11px;
+          border-top-right-radius: 11px;
         }
 
         .group-collapse-btn {
@@ -1108,27 +1177,26 @@ export const BoardView: React.FC = () => {
         }
 
         .group-table-content {
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
+          overflow: visible;
         }
 
         .table-header-grid {
           display: grid;
-          grid-template-columns: 2.8fr 140px 180px 100px 130px 100px 90px;
-          min-width: 880px;
+          grid-template-columns: minmax(280px, 1.8fr) 155px 150px 95px 115px 85px 115px 95px;
+          min-width: 1090px;
           padding: 10px 18px;
           font-size: 11px;
           font-weight: 700;
           color: var(--text-muted);
-          letter-spacing: 0.04em;
+          letter-spacing: 0.05em;
           border-bottom: 1px solid var(--border-subtle);
-          background: rgba(0, 0, 0, 0.2);
+          background: rgba(0, 0, 0, 0.25);
         }
 
         .table-row {
           display: grid;
-          grid-template-columns: 2.8fr 140px 180px 100px 130px 100px 90px;
-          min-width: 880px;
+          grid-template-columns: minmax(280px, 1.8fr) 155px 150px 95px 115px 85px 115px 95px;
+          min-width: 1090px;
           align-items: center;
           padding: 10px 18px;
           border-bottom: 1px solid var(--border-subtle);
@@ -1164,6 +1232,13 @@ export const BoardView: React.FC = () => {
         }
 
         .relative {
+          position: relative;
+        }
+
+        .col-status {
+          display: flex;
+          align-items: center;
+          min-width: 0;
           position: relative;
         }
 
@@ -1216,35 +1291,149 @@ export const BoardView: React.FC = () => {
 
         .dropdown-popover {
           position: absolute;
-          top: calc(100% + 4px);
+          top: calc(100% + 6px);
           left: 0;
-          width: 160px;
-          background: var(--bg-surface);
-          border: 1px solid var(--border-default);
-          border-radius: 8px;
-          box-shadow: var(--shadow-md);
-          padding: 4px;
-          z-index: 100;
+          width: 175px;
+          background: #141724;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          border-radius: 10px;
+          box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+          padding: 6px;
+          z-index: 1000;
         }
 
         .dropdown-option {
           width: 100%;
           display: flex;
           align-items: center;
-          gap: 6px;
-          padding: 6px 8px;
+          gap: 8px;
+          padding: 8px 10px;
           border-radius: 6px;
           font-size: 12px;
+          font-weight: 500;
           color: var(--text-secondary);
           text-align: left;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          transition: all var(--transition-fast);
         }
         .dropdown-option:hover {
-          background: var(--bg-hover);
+          background: rgba(255, 255, 255, 0.08);
           color: var(--text-primary);
         }
         .dropdown-option.active {
+          background: rgba(62, 207, 142, 0.12);
           color: var(--primary);
           font-weight: 600;
+        }
+
+        .group-summary-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 18px;
+          background: rgba(18, 21, 31, 0.95);
+          border-top: 1px solid var(--border-subtle);
+          border-bottom-left-radius: 11px;
+          border-bottom-right-radius: 11px;
+          font-size: 11px;
+        }
+
+        .footer-status-group {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .footer-status-label {
+          font-family: var(--font-mono);
+          font-size: 10px;
+          text-transform: uppercase;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          color: var(--text-muted);
+        }
+
+        .footer-battery-wrap {
+          width: 200px;
+        }
+
+        .footer-metrics-group {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          font-family: var(--font-mono);
+          font-size: 11px;
+          color: var(--text-secondary);
+        }
+
+        .footer-metric-item {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .footer-metric-label {
+          color: var(--text-muted);
+        }
+
+        .footer-metric-val {
+          color: var(--text-primary);
+          font-weight: 700;
+        }
+
+        .footer-metric-indigo {
+          color: #818cf8;
+          font-weight: 700;
+        }
+
+        .footer-metric-emerald {
+          color: #3ecf8e;
+          font-weight: 700;
+        }
+
+        .board-summary-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 20px;
+          border-radius: 12px;
+          background: rgba(18, 21, 31, 0.95);
+          border: 1px solid var(--border-default);
+          box-shadow: var(--shadow-md);
+          margin-top: 16px;
+        }
+
+        .board-summary-left {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .board-battery-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .board-battery-label {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          color: var(--text-primary);
+          letter-spacing: 0.04em;
+        }
+
+        .board-battery-wrap {
+          width: 240px;
+        }
+
+        .board-metrics-right {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          font-size: 11px;
         }
 
         .ml-auto {
@@ -1392,6 +1581,115 @@ export const BoardView: React.FC = () => {
         .board-not-found {
           padding: 48px;
           text-align: center;
+        }
+
+        /* Floating Collaborator Toast Notifications */
+        .collaborator-toast-container {
+          position: fixed;
+          bottom: 24px;
+          right: 24px;
+          z-index: 9999;
+          display: flex;
+          flex-direction: column-reverse;
+          gap: 10px;
+          pointer-events: none;
+          max-width: 340px;
+        }
+
+        .collaborator-toast-card {
+          pointer-events: auto;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 14px;
+          background: rgba(18, 21, 31, 0.96);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-left: 3px solid var(--primary);
+          border-radius: 10px;
+          box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
+          animation: toastSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes toastSlideIn {
+          from {
+            opacity: 0;
+            transform: translateX(20px) scale(0.96);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0) scale(1);
+          }
+        }
+
+        .toast-avatar-box {
+          position: relative;
+          width: 30px;
+          height: 30px;
+          flex-shrink: 0;
+        }
+
+        .toast-avatar-img {
+          width: 30px !important;
+          height: 30px !important;
+          min-width: 30px !important;
+          min-height: 30px !important;
+          max-width: 30px !important;
+          max-height: 30px !important;
+          border-radius: 50% !important;
+          object-fit: cover !important;
+          border: 1.5px solid var(--border-default);
+          display: block;
+        }
+
+        .toast-live-dot {
+          position: absolute;
+          bottom: -1px;
+          right: -1px;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          border: 1.5px solid rgba(18, 21, 31, 1);
+        }
+
+        .toast-content-col {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .toast-user-name {
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--text-primary);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .toast-message-text {
+          font-size: 11px;
+          color: var(--text-secondary);
+          line-height: 1.3;
+          margin-top: 2px;
+        }
+
+        .toast-dismiss-btn {
+          color: var(--text-muted);
+          padding: 4px;
+          border-radius: 4px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all var(--transition-fast);
+          flex-shrink: 0;
+          background: transparent;
+          border: none;
+        }
+        .toast-dismiss-btn:hover {
+          color: var(--text-primary);
+          background: rgba(255, 255, 255, 0.08);
         }
       `}</style>
     </div>

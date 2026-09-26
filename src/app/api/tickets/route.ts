@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cacheGet, cacheSet, cacheDelete, checkRateLimit } from '@/lib/redis';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
-import { dispatchSlackNotification } from '@/lib/integrations/slack';
+import { addServerMessage } from '@/lib/serverChannelsStore';
+import { getServerBoardItems, addServerBoardItem } from '@/lib/serverTicketsStore';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const boardId = searchParams.get('board_id');
-  const workspaceId = searchParams.get('workspace_id');
 
   if (!boardId) {
     return NextResponse.json({ error: 'board_id query parameter is required' }, { status: 400 });
@@ -20,7 +22,8 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  if (isSupabaseConfigured()) {
+  const isBoardUuid = UUID_REGEX.test(boardId);
+  if (isSupabaseConfigured() && isBoardUuid) {
     try {
       const supabase = createClient();
       const { data, error } = await supabase
@@ -29,20 +32,18 @@ export async function GET(request: NextRequest) {
         .eq('board_id', boardId)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      if (!error && data) {
+        await cacheSet(cacheKey, data, 60);
+        return NextResponse.json({ data, source: 'database' });
       }
-
-      await cacheSet(cacheKey, data, 60);
-      return NextResponse.json({ data, source: 'database' });
     } catch (err) {
-      console.error('[API Tickets GET]', err);
-      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+      console.warn('[API Tickets GET Supabase fallback]', err);
     }
   }
 
-  // Graceful fallback for local development / demo mode
-  return NextResponse.json({ data: [], source: 'demo-fallback' });
+  // Graceful persistent store for demo boards & non-UUID boards
+  const serverItems = getServerBoardItems(boardId);
+  return NextResponse.json({ data: serverItems, source: 'server-store' });
 }
 
 export async function POST(request: NextRequest) {
@@ -70,21 +71,21 @@ export async function POST(request: NextRequest) {
     const ticketNumber = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const newTicket = {
-      id: `ticket-${Date.now()}`,
+      id: body.id || `item-${Date.now()}`,
       ticket_number: ticketNumber,
       workspace_id,
       board_id,
-      group_id: group_id || null,
+      group_id: group_id || 'group-1',
       title: title.trim(),
       description: description || '',
-      status: 'Working on it',
-      status_color: '#f59e0b',
+      status: body.status || 'Working on it',
+      status_color: body.status_color || '#f59e0b',
       priority: priority || 'medium',
       severity: severity || 'minor',
       due_date: due_date || 'Next week',
       assignee: assignee || { id: 'usr-demo-001', name: 'Alex Rivera', avatar: '' },
       tags: tags || ['Ticket'],
-      subtasks: [],
+      subtasks: body.subtasks || [],
       version: 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -99,45 +100,43 @@ export async function POST(request: NextRequest) {
       comments: [],
     };
 
-    if (isSupabaseConfigured()) {
-      const supabase = createClient();
-      const { data, error } = await supabase.from('tickets').insert([newTicket]).select().single();
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-      // Invalidate cache
-      await cacheDelete(`tickets:board:${board_id}`);
-      
-      // Dispatch Slack notification if priority is urgent or high
-      if (priority === 'urgent' || priority === 'high') {
-        dispatchSlackNotification({
-          workspaceId: workspace_id,
-          ticketNumber,
-          title: newTicket.title,
-          priority: newTicket.priority,
-          status: newTicket.status,
-          assigneeName: newTicket.assignee.name,
-          ticketId: newTicket.id,
-        }).catch((e) => console.warn('[Slack Webhook Dispatch Failed]', e));
-      }
+    // Save to persistent server store
+    addServerBoardItem(newTicket as any);
 
-      return NextResponse.json({ data, success: true }, { status: 201 });
+    const isBoardUuid = UUID_REGEX.test(board_id);
+    const isTicketUuid = UUID_REGEX.test(newTicket.id);
+
+    if (isSupabaseConfigured() && isBoardUuid && isTicketUuid) {
+      try {
+        const supabase = createClient();
+        await supabase.from('tickets').insert([newTicket]);
+      } catch (e) {
+        console.warn('[Supabase Insert Fallback]', e);
+      }
     }
 
     // Invalidate cache
     await cacheDelete(`tickets:board:${board_id}`);
 
-    // If Slack webhook is configured for this workspace, dispatch alert
+    // Native team channel alert for high/urgent priority tickets (internal Slack-like flow)
     if (priority === 'urgent' || priority === 'high') {
-      dispatchSlackNotification({
-        workspaceId: workspace_id,
-        ticketNumber,
-        title: newTicket.title,
-        priority: newTicket.priority,
-        status: newTicket.status,
-        assigneeName: newTicket.assignee.name,
-        ticketId: newTicket.id,
-      }).catch((e) => console.warn('[Slack Webhook Dispatch Failed]', e));
+      try {
+        addServerMessage({
+          id: `msg-alert-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          channel_id: 'chan-eng-alerts',
+          workspace_id: workspace_id,
+          user_id: 'usr-bot',
+          user_name: 'HappyTF Alerts Bot',
+          user_avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
+          content: `🚨 **[${(priority || 'HIGH').toUpperCase()} PRIORITY]** Ticket **#${ticketNumber}** created: *${newTicket.title}*\nStatus: **${newTicket.status}** • Assigned to: **${newTicket.assignee.name}**`,
+          linked_ticket_number: ticketNumber,
+          reactions: [{ emoji: '👀', count: 1, users: ['HappyTF Bot'] }],
+          reply_count: 0,
+          created_at: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn('[Internal Channel Alert Dispatch Failed]', e);
+      }
     }
 
     return NextResponse.json({ data: newTicket, success: true }, { status: 201 });

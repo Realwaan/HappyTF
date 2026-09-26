@@ -93,10 +93,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       <style jsx>{`
         .app-shell-root {
           display: flex;
-          min-height: 100vh;
+          height: 100vh;
+          width: 100vw;
+          overflow: hidden;
           background: var(--bg-canvas);
           color: var(--text-primary);
-          position: relative;
+          position: fixed;
+          inset: 0;
         }
 
         .app-main-column {
@@ -104,13 +107,16 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           display: flex;
           flex-direction: column;
           min-width: 0;
-          overflow-x: hidden;
+          height: 100vh;
+          overflow: hidden;
         }
 
         .app-viewport {
           flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          overflow-x: hidden;
           background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.04) 0%, transparent 70%);
-          min-height: calc(100vh - var(--topbar-height));
         }
       `}</style>
     </div>

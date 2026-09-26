@@ -43,7 +43,9 @@ export const Sidebar: React.FC = () => {
     activeBoardId,
     navigateToBoard,
     navigateToHome,
-    setShortcutsModalOpen
+    setShortcutsModalOpen,
+    boardViewMode,
+    setBoardViewMode,
   } = useApp();
 
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
@@ -169,20 +171,63 @@ export const Sidebar: React.FC = () => {
 
       {/* 2. Main Navigation Links */}
       <nav className="sidebar-nav" id="sidebar-main-nav">
-        <button
-          type="button"
-          onClick={navigateToHome}
-          className={`nav-link ${activeView === 'home' ? 'active' : ''}`}
-          id="nav-home-link"
-          title="Home & My Work"
-        >
-          <Home size={18} />
-          {!isSidebarCollapsed && <span>My Work</span>}
-        </button>
+        {/* Core Workspace Views */}
+        <div className="nav-top-section">
+          <button
+            type="button"
+            onClick={navigateToHome}
+            className={`nav-link ${activeView === 'home' ? 'active' : ''}`}
+            id="nav-home-link"
+            title="Home & My Work"
+          >
+            <Home size={18} />
+            {!isSidebarCollapsed && <span>My Work</span>}
+          </button>
+
+          <button
+            type="button"
+            id="nav-dashboards-link"
+            className={`nav-link ${activeView === 'board' && boardViewMode === 'dashboard' ? 'active' : ''}`}
+            title="Dashboards & Sprint Analytics"
+            onClick={() => {
+              if (activeBoardId) {
+                navigateToBoard(activeBoardId);
+                setBoardViewMode('dashboard');
+              } else if (recentBoards.length > 0) {
+                navigateToBoard(recentBoards[0].id);
+                setBoardViewMode('dashboard');
+              }
+            }}
+          >
+            <PieChart size={18} />
+            {!isSidebarCollapsed && (
+              <div className="nav-label-with-badge">
+                <span>Dashboards</span>
+                <span className="feature-pill font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
+              </div>
+            )}
+          </button>
+
+          <button
+            type="button"
+            id="nav-templates-link"
+            className="nav-link"
+            title="Board Templates"
+            onClick={() => setCreateBoardOpen(true)}
+          >
+            <Layers size={18} />
+            {!isSidebarCollapsed && (
+              <div className="nav-label-with-badge">
+                <span>Templates</span>
+                <span className="count-badge font-mono">5</span>
+              </div>
+            )}
+          </button>
+        </div>
 
         {/* Structural Hierarchy: Folders & Boards Section */}
         <div className="nav-group">
-          {!isSidebarCollapsed && (
+          {!isSidebarCollapsed ? (
             <div className="nav-group-header">
               <span className="group-title">WORKSPACES & FOLDERS</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -205,6 +250,8 @@ export const Sidebar: React.FC = () => {
                 </button>
               </div>
             </div>
+          ) : (
+            <div className="nav-group-divider" />
           )}
 
           {isCreatingFolder && !isSidebarCollapsed && (
@@ -241,7 +288,7 @@ export const Sidebar: React.FC = () => {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
+                      justifyContent: isSidebarCollapsed ? 'center' : 'space-between',
                       padding: '5px 8px',
                       borderRadius: '6px',
                       cursor: 'pointer',
@@ -250,6 +297,7 @@ export const Sidebar: React.FC = () => {
                       color: 'var(--text-secondary)',
                       transition: 'background 0.15s ease',
                     }}
+                    title={f.name}
                     onClick={() => toggleFolderCollapse(f.id)}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
@@ -273,7 +321,7 @@ export const Sidebar: React.FC = () => {
                   </div>
 
                   {!f.collapsed && (
-                    <div style={{ paddingLeft: '14px', borderLeft: '1px solid rgba(255,255,255,0.08)', marginLeft: '12px', marginTop: '2px' }}>
+                    <div style={{ paddingLeft: isSidebarCollapsed ? '0' : '14px', borderLeft: isSidebarCollapsed ? 'none' : '1px solid rgba(255,255,255,0.08)', marginLeft: isSidebarCollapsed ? '0' : '12px', marginTop: '2px' }}>
                       {folderBoards.map((b) => (
                         <button
                           key={b.id}
@@ -321,28 +369,32 @@ export const Sidebar: React.FC = () => {
                 )}
               </button>
             ))}
+
+            {recentBoards.length === 0 && folders.length === 0 && !isSidebarCollapsed && (
+              <div style={{ padding: '12px 8px', textAlign: 'center' }}>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>No boards in workspace</p>
+                <button
+                  type="button"
+                  onClick={() => setCreateBoardOpen(true)}
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--primary)',
+                    background: 'rgba(62, 207, 142, 0.08)',
+                    border: '1px solid rgba(62, 207, 142, 0.2)',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Plus size={12} />
+                  <span>Create Board</span>
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Dashboards & Templates Navigation */}
-        <div className="nav-link disabled-link" title="Dashboards (Month 8)">
-          <PieChart size={18} />
-          {!isSidebarCollapsed && (
-            <div className="nav-label-with-badge">
-              <span>Dashboards</span>
-              <span className="feature-pill font-mono">Month 8</span>
-            </div>
-          )}
-        </div>
-
-        <div className="nav-link disabled-link" title="Templates">
-          <Layers size={18} />
-          {!isSidebarCollapsed && (
-            <div className="nav-label-with-badge">
-              <span>Templates</span>
-              <span className="count-badge font-mono">10</span>
-            </div>
-          )}
         </div>
       </nav>
 
@@ -368,6 +420,7 @@ export const Sidebar: React.FC = () => {
             title="Keyboard Shortcuts (?)"
           >
             <Keyboard size={15} className="text-secondary" />
+            {!isSidebarCollapsed && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>?</span>}
           </button>
         </div>
 
@@ -407,12 +460,12 @@ export const Sidebar: React.FC = () => {
           min-width: var(--sidebar-width);
           background: var(--bg-subtle);
           border-right: 1px solid var(--border-subtle);
-          height: 100vh;
+          height: 100%;
           display: flex;
           flex-direction: column;
+          flex-shrink: 0;
           transition: width var(--transition-normal), min-width var(--transition-normal);
-          position: sticky;
-          top: 0;
+          position: relative;
           z-index: 100;
           user-select: none;
         }
@@ -427,6 +480,7 @@ export const Sidebar: React.FC = () => {
           padding: 12px 14px;
           border-bottom: 1px solid var(--border-subtle);
           position: relative;
+          flex-shrink: 0;
         }
 
         .ws-switcher-btn {
@@ -479,6 +533,7 @@ export const Sidebar: React.FC = () => {
         :global(.chevron-icon) {
           color: var(--text-muted);
           transition: transform var(--transition-fast);
+          flex-shrink: 0;
         }
         :global(.chevron-icon.rotate) {
           transform: rotate(180deg);
@@ -526,10 +581,6 @@ export const Sidebar: React.FC = () => {
           background: var(--bg-elevated);
         }
 
-        .ws-item-emoji {
-          font-size: 18px;
-        }
-
         .ws-item-info {
           flex: 1;
           display: flex;
@@ -568,8 +619,16 @@ export const Sidebar: React.FC = () => {
         /* Navigation */
         .sidebar-nav {
           flex: 1;
-          padding: 14px 10px;
+          min-height: 0;
+          padding: 12px 10px;
           overflow-y: auto;
+          overflow-x: hidden;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .nav-top-section {
           display: flex;
           flex-direction: column;
           gap: 4px;
@@ -599,11 +658,6 @@ export const Sidebar: React.FC = () => {
           border-left: 3px solid var(--primary);
         }
 
-        .disabled-link {
-          opacity: 0.65;
-          cursor: not-allowed;
-        }
-
         .nav-label-with-badge {
           display: flex;
           align-items: center;
@@ -630,14 +684,20 @@ export const Sidebar: React.FC = () => {
         /* Groups & Boards */
         .nav-group {
           margin-top: 14px;
-          margin-bottom: 10px;
+          margin-bottom: 8px;
+        }
+
+        .nav-group-divider {
+          height: 1px;
+          background: var(--border-subtle);
+          margin: 8px 6px;
         }
 
         .nav-group-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 4px 12px;
+          padding: 4px 10px;
           margin-bottom: 4px;
         }
 
@@ -650,9 +710,12 @@ export const Sidebar: React.FC = () => {
 
         .icon-action-btn {
           color: var(--text-muted);
-          padding: 2px;
+          padding: 3px;
           border-radius: 4px;
           transition: all var(--transition-fast);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
         .icon-action-btn:hover {
           color: var(--text-primary);
@@ -691,6 +754,7 @@ export const Sidebar: React.FC = () => {
           justify-content: center;
           color: var(--text-muted);
           transition: color var(--transition-fast);
+          flex-shrink: 0;
         }
         .board-nav-item:hover .board-icon-wrap {
           color: var(--text-primary);
@@ -708,6 +772,7 @@ export const Sidebar: React.FC = () => {
           border-radius: 6px;
           background: rgba(255, 255, 255, 0.04);
           border: 1px solid var(--border-subtle);
+          flex-shrink: 0;
         }
 
         .board-name {
@@ -723,7 +788,7 @@ export const Sidebar: React.FC = () => {
 
         /* Footer */
         .sidebar-footer {
-          padding: 14px;
+          padding: 12px 14px;
           border-top: 1px solid var(--border-subtle);
           display: flex;
           align-items: center;
@@ -760,6 +825,9 @@ export const Sidebar: React.FC = () => {
           padding: 6px;
           border-radius: 8px;
           transition: all var(--transition-fast);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
         .collapse-btn:hover {
           background: var(--bg-hover);
@@ -776,6 +844,7 @@ export const Sidebar: React.FC = () => {
           color: var(--text-muted);
           background: var(--bg-canvas);
           border-top: 1px solid var(--border-subtle);
+          flex-shrink: 0;
         }
 
         .legal-link-mini {
@@ -804,6 +873,56 @@ export const Sidebar: React.FC = () => {
 
         .dot-sep {
           color: var(--border-default);
+        }
+
+        /* Collapsed Sidebar Rules */
+        .app-sidebar.collapsed .ws-switcher-container {
+          padding: 12px 8px;
+          display: flex;
+          justify-content: center;
+        }
+        .app-sidebar.collapsed .ws-switcher-btn {
+          justify-content: center;
+          padding: 4px 0;
+        }
+        .app-sidebar.collapsed .ws-dropdown-menu {
+          left: calc(100% + 8px);
+          top: 8px;
+          width: 250px;
+        }
+        .app-sidebar.collapsed .sidebar-nav {
+          padding: 12px 6px;
+        }
+        .app-sidebar.collapsed .nav-link {
+          justify-content: center;
+          padding: 9px 0;
+        }
+        .app-sidebar.collapsed .board-nav-item {
+          justify-content: center;
+          padding: 7px 0;
+        }
+        .app-sidebar.collapsed .folder-tree-header {
+          justify-content: center;
+          padding: 6px 0;
+        }
+        .app-sidebar.collapsed .sidebar-footer {
+          flex-direction: column;
+          padding: 10px 6px;
+          gap: 6px;
+        }
+        .app-sidebar.collapsed .footer-left {
+          flex-direction: column;
+          gap: 6px;
+          width: 100%;
+        }
+        .app-sidebar.collapsed .footer-btn {
+          justify-content: center;
+          padding: 6px 0;
+          width: 100%;
+        }
+        .app-sidebar.collapsed .collapse-btn {
+          width: 100%;
+          justify-content: center;
         }
       `}</style>
     </aside>

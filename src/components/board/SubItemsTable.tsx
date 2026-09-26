@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { SubItem } from '../../types';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { 
   Check, 
   Trash2, 
@@ -21,6 +22,175 @@ interface SubItemsTableProps {
   onUpdateSubItem: (parentId: string, subItemId: string, updates: Partial<SubItem>) => void;
   onDeleteSubItem: (parentId: string, subItemId: string) => void;
 }
+
+interface SubItemRowProps {
+  parentId: string;
+  sub: SubItem;
+  statusOptions: { label: SubItem['status']; color: string; icon: React.ReactNode }[];
+  activeStatusPopoverId: string | null;
+  setActiveStatusPopoverId: (id: string | null) => void;
+  onUpdateSubItem: (parentId: string, subItemId: string, updates: Partial<SubItem>) => void;
+  onDeleteSubItem: (parentId: string, subItemId: string) => void;
+}
+
+const SubItemRow: React.FC<SubItemRowProps> = ({
+  parentId,
+  sub,
+  statusOptions,
+  activeStatusPopoverId,
+  setActiveStatusPopoverId,
+  onUpdateSubItem,
+  onDeleteSubItem,
+}) => {
+  const [localTitle, setLocalTitle] = useState(sub.title);
+  const [localPoints, setLocalPoints] = useState(sub.number_val ?? 1);
+  const isTitleFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isTitleFocusedRef.current) {
+      setLocalTitle(sub.title);
+    }
+  }, [sub.title]);
+
+  useEffect(() => {
+    setLocalPoints(sub.number_val ?? 1);
+  }, [sub.number_val]);
+
+  const handleTitleBlur = () => {
+    isTitleFocusedRef.current = false;
+    if (localTitle.trim() && localTitle !== sub.title) {
+      onUpdateSubItem(parentId, sub.id, { title: localTitle.trim() });
+    }
+  };
+
+  const handlePointsBlur = () => {
+    if (localPoints !== sub.number_val) {
+      onUpdateSubItem(parentId, sub.id, { number_val: localPoints });
+    }
+  };
+
+  return (
+    <div className="sub-grid-row sub-data-row">
+      {/* Checkbox */}
+      <div className="cell cell-check">
+        <button
+          type="button"
+          className={`sub-checkbox ${sub.completed ? 'checked' : ''}`}
+          onClick={() => {
+            const newCompleted = !sub.completed;
+            onUpdateSubItem(parentId, sub.id, {
+              completed: newCompleted,
+              status: newCompleted ? 'Done' : 'Working on it',
+              status_color: newCompleted ? '#10b981' : '#f59e0b',
+            });
+          }}
+        >
+          {sub.completed && <Check size={11} strokeWidth={3} />}
+        </button>
+      </div>
+
+      {/* Title */}
+      <div className="cell cell-title">
+        <input
+          type="text"
+          value={localTitle}
+          onFocus={() => { isTitleFocusedRef.current = true; }}
+          onChange={(e) => setLocalTitle(e.target.value)}
+          onBlur={handleTitleBlur}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            }
+          }}
+          className={`sub-title-input ${sub.completed ? 'completed' : ''}`}
+        />
+      </div>
+
+      {/* Status with popover */}
+      <div className="cell cell-status relative">
+        <button
+          type="button"
+          className="sub-status-pill"
+          style={{
+            backgroundColor: `${sub.status_color || '#10b981'}25`,
+            color: sub.status_color || '#10b981',
+            borderColor: `${sub.status_color || '#10b981'}50`,
+          }}
+          onClick={() => setActiveStatusPopoverId(activeStatusPopoverId === sub.id ? null : sub.id)}
+        >
+          <span 
+            className="status-dot" 
+            style={{ backgroundColor: sub.status_color || '#10b981' }} 
+          />
+          <span className="truncate">{sub.status || 'Done'}</span>
+        </button>
+
+        {activeStatusPopoverId === sub.id && (
+          <div className="sub-popover-menu">
+            {statusOptions.map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                className="popover-option"
+                onClick={() => {
+                  onUpdateSubItem(parentId, sub.id, {
+                    status: opt.label,
+                    status_color: opt.color,
+                    completed: opt.label === 'Done',
+                  });
+                  setActiveStatusPopoverId(null);
+                }}
+              >
+                {opt.icon}
+                <span>{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Owner */}
+      <div className="cell cell-owner">
+        {sub.assignee ? (
+          <div className="sub-assignee-box">
+            <img src={getSafeAvatar(sub.assignee.avatar, sub.assignee.name)} alt={sub.assignee.name} className="sub-avatar" />
+            <span className="truncate">{sub.assignee.name}</span>
+          </div>
+        ) : (
+          <span className="sub-empty">—</span>
+        )}
+      </div>
+
+      {/* Points / Numbers */}
+      <div className="cell cell-points">
+        <input
+          type="number"
+          value={localPoints}
+          onChange={(e) => setLocalPoints(parseInt(e.target.value, 10) || 0)}
+          onBlur={handlePointsBlur}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            }
+          }}
+          className="sub-points-input"
+        />
+      </div>
+
+      {/* Delete */}
+      <div className="cell cell-actions">
+        <button
+          type="button"
+          className="sub-delete-btn"
+          onClick={() => onDeleteSubItem(parentId, sub.id)}
+          title="Delete sub-item"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export const SubItemsTable: React.FC<SubItemsTableProps> = ({
   parentId,
@@ -49,7 +219,7 @@ export const SubItemsTable: React.FC<SubItemsTableProps> = ({
 
   return (
     <div 
-      className="sub-items-wrapper animate-fade-in"
+      className="sub-items-wrapper animate-fade-in" 
       onClick={(e) => e.stopPropagation()}
     >
       <div className="sub-items-header-bar">
@@ -71,112 +241,16 @@ export const SubItemsTable: React.FC<SubItemsTableProps> = ({
 
         {/* Sub-item Rows */}
         {subItems.map((sub) => (
-          <div key={sub.id} className="sub-grid-row sub-data-row">
-            {/* Checkbox */}
-            <div className="cell cell-check">
-              <button
-                type="button"
-                className={`sub-checkbox ${sub.completed ? 'checked' : ''}`}
-                onClick={() => {
-                  const newCompleted = !sub.completed;
-                  onUpdateSubItem(parentId, sub.id, {
-                    completed: newCompleted,
-                    status: newCompleted ? 'Done' : 'Working on it',
-                    status_color: newCompleted ? '#10b981' : '#f59e0b',
-                  });
-                }}
-              >
-                {sub.completed && <Check size={11} strokeWidth={3} />}
-              </button>
-            </div>
-
-            {/* Title */}
-            <div className="cell cell-title">
-              <input
-                type="text"
-                value={sub.title}
-                onChange={(e) => onUpdateSubItem(parentId, sub.id, { title: e.target.value })}
-                className={`sub-title-input ${sub.completed ? 'completed' : ''}`}
-              />
-            </div>
-
-            {/* Status with popover */}
-            <div className="cell cell-status relative">
-              <button
-                type="button"
-                className="sub-status-pill"
-                style={{
-                  backgroundColor: `${sub.status_color || '#10b981'}25`,
-                  color: sub.status_color || '#10b981',
-                  borderColor: `${sub.status_color || '#10b981'}50`,
-                }}
-                onClick={() => setActiveStatusPopoverId(activeStatusPopoverId === sub.id ? null : sub.id)}
-              >
-                <span 
-                  className="status-dot" 
-                  style={{ backgroundColor: sub.status_color || '#10b981' }} 
-                />
-                <span className="truncate">{sub.status || 'Done'}</span>
-              </button>
-
-              {activeStatusPopoverId === sub.id && (
-                <div className="sub-popover-menu">
-                  {statusOptions.map((opt) => (
-                    <button
-                      key={opt.label}
-                      type="button"
-                      className="popover-option"
-                      onClick={() => {
-                        onUpdateSubItem(parentId, sub.id, {
-                          status: opt.label,
-                          status_color: opt.color,
-                          completed: opt.label === 'Done',
-                        });
-                        setActiveStatusPopoverId(null);
-                      }}
-                    >
-                      {opt.icon}
-                      <span>{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Owner */}
-            <div className="cell cell-owner">
-              {sub.assignee ? (
-                <div className="sub-assignee-box">
-                  <img src={sub.assignee.avatar} alt={sub.assignee.name} className="sub-avatar" />
-                  <span className="truncate">{sub.assignee.name}</span>
-                </div>
-              ) : (
-                <span className="sub-empty">—</span>
-              )}
-            </div>
-
-            {/* Points / Numbers */}
-            <div className="cell cell-points">
-              <input
-                type="number"
-                value={sub.number_val ?? 1}
-                onChange={(e) => onUpdateSubItem(parentId, sub.id, { number_val: parseInt(e.target.value, 10) || 0 })}
-                className="sub-points-input"
-              />
-            </div>
-
-            {/* Delete */}
-            <div className="cell cell-actions">
-              <button
-                type="button"
-                className="sub-delete-btn"
-                onClick={() => onDeleteSubItem(parentId, sub.id)}
-                title="Delete sub-item"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          </div>
+          <SubItemRow
+            key={sub.id}
+            parentId={parentId}
+            sub={sub}
+            statusOptions={statusOptions}
+            activeStatusPopoverId={activeStatusPopoverId}
+            setActiveStatusPopoverId={setActiveStatusPopoverId}
+            onUpdateSubItem={onUpdateSubItem}
+            onDeleteSubItem={onDeleteSubItem}
+          />
         ))}
 
         {/* Add Sub-Item Inline Form */}

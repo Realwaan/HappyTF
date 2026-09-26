@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { 
   X, 
   ChevronUp, 
@@ -46,6 +47,7 @@ export const ItemDetailPanel: React.FC = () => {
     activeBoard,
     claimBoardItem,
     currentUser,
+    members,
     gitHubCommits
   } = useApp();
 
@@ -55,15 +57,33 @@ export const ItemDetailPanel: React.FC = () => {
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const [isSeverityOpen, setIsSeverityOpen] = useState(false);
+  const [isAssigneeOpen, setIsAssigneeOpen] = useState(false);
+  const [isDueDateEditing, setIsDueDateEditing] = useState(false);
+  const [dueDateInput, setDueDateInput] = useState('');
+  const [newTagInput, setNewTagInput] = useState('');
+  const [isAddingTag, setIsAddingTag] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+
+  const isTitleFocusedRef = useRef(false);
+  const isDescFocusedRef = useRef(false);
+  const descDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (selectedItem) {
-      setTitle(selectedItem.title);
-      setDescription(selectedItem.description || '');
+      if (!isTitleFocusedRef.current) {
+        setTitle(selectedItem.title);
+      }
+      if (!isDescFocusedRef.current) {
+        setDescription(selectedItem.description || '');
+      }
       setIsStatusOpen(false);
       setIsPriorityOpen(false);
       setIsSeverityOpen(false);
+      setIsAssigneeOpen(false);
+      setIsDueDateEditing(false);
+      setDueDateInput(selectedItem.due_date || '');
+      setIsAddingTag(false);
+      setNewTagInput('');
       setNewSubtaskTitle('');
     }
   }, [selectedItem]);
@@ -87,7 +107,7 @@ export const ItemDetailPanel: React.FC = () => {
     const updatedSubtasks = (selectedItem.subtasks || []).map((st) =>
       st.id === subtaskId ? { ...st, completed: !st.completed } : st
     );
-    updateBoardItem(selectedItem.id, { subtasks: updatedSubtasks }, selectedItem.version);
+    updateBoardItem(selectedItem.id, { subtasks: updatedSubtasks });
   };
 
   const handleAddSubtask = (e?: React.FormEvent) => {
@@ -101,8 +121,14 @@ export const ItemDetailPanel: React.FC = () => {
     };
 
     const updatedSubtasks = [...(selectedItem.subtasks || []), newSubtask];
-    updateBoardItem(selectedItem.id, { subtasks: updatedSubtasks }, selectedItem.version);
+    updateBoardItem(selectedItem.id, { subtasks: updatedSubtasks });
     setNewSubtaskTitle('');
+  };
+
+  const handleDeleteSubtask = (subtaskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updatedSubtasks = (selectedItem.subtasks || []).filter((st) => st.id !== subtaskId);
+    updateBoardItem(selectedItem.id, { subtasks: updatedSubtasks });
   };
 
   const insertTemplate = (type: 'bug' | 'incident' | 'spec') => {
@@ -114,19 +140,38 @@ export const ItemDetailPanel: React.FC = () => {
     } else {
       tpl = `### Acceptance Criteria & Verification\n- [ ] Edge cases covered\n- [ ] Unit & integration tests pass\n- [ ] Performance SLA within 200ms\n`;
     }
-    setDescription((prev) => (prev ? `${prev}\n\n${tpl}` : tpl));
-    updateBoardItem(selectedItem.id, { description: description ? `${description}\n\n${tpl}` : tpl }, selectedItem.version);
+    const nextDesc = description ? `${description}\n\n${tpl}` : tpl;
+    setDescription(nextDesc);
+    updateBoardItem(selectedItem.id, { description: nextDesc });
   };
 
   const handleTitleBlur = () => {
-    if (title.trim() && title !== selectedItem.title) {
-      updateBoardItem(selectedItem.id, { title: title.trim() }, selectedItem.version);
+    isTitleFocusedRef.current = false;
+    if (selectedItem && title.trim() && title.trim() !== selectedItem.title) {
+      updateBoardItem(selectedItem.id, { title: title.trim() });
     }
   };
 
+  const handleDescriptionChange = (newVal: string) => {
+    setDescription(newVal);
+    if (descDebounceTimerRef.current) {
+      clearTimeout(descDebounceTimerRef.current);
+    }
+    descDebounceTimerRef.current = setTimeout(() => {
+      if (selectedItem && newVal !== selectedItem.description) {
+        updateBoardItem(selectedItem.id, { description: newVal });
+      }
+    }, 700);
+  };
+
   const handleDescriptionBlur = () => {
-    if (description !== selectedItem.description) {
-      updateBoardItem(selectedItem.id, { description }, selectedItem.version);
+    isDescFocusedRef.current = false;
+    if (descDebounceTimerRef.current) {
+      clearTimeout(descDebounceTimerRef.current);
+      descDebounceTimerRef.current = null;
+    }
+    if (selectedItem && description !== selectedItem.description) {
+      updateBoardItem(selectedItem.id, { description });
     }
   };
 
@@ -209,6 +254,7 @@ export const ItemDetailPanel: React.FC = () => {
               className="item-title-input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onFocus={() => { isTitleFocusedRef.current = true; }}
               onBlur={handleTitleBlur}
               placeholder="Task name..."
             />
@@ -241,8 +287,7 @@ export const ItemDetailPanel: React.FC = () => {
                         onClick={() => {
                           updateBoardItem(
                             selectedItem.id, 
-                            { status: s.label, status_color: s.color },
-                            selectedItem.version
+                            { status: s.label, status_color: s.color }
                           );
                           setIsStatusOpen(false);
                         }}
@@ -281,8 +326,7 @@ export const ItemDetailPanel: React.FC = () => {
                         onClick={() => {
                           updateBoardItem(
                             selectedItem.id, 
-                            { priority: p },
-                            selectedItem.version
+                            { priority: p }
                           );
                           setIsPriorityOpen(false);
                         }}
@@ -321,8 +365,7 @@ export const ItemDetailPanel: React.FC = () => {
                         onClick={() => {
                           updateBoardItem(
                             selectedItem.id,
-                            { severity: sev },
-                            selectedItem.version
+                            { severity: sev }
                           );
                           setIsSeverityOpen(false);
                         }}
@@ -339,21 +382,65 @@ export const ItemDetailPanel: React.FC = () => {
             {/* Assignee Property */}
             <div className="property-row">
               <span className="property-label">Assignee</span>
-              <div className="property-value flex items-center justify-between w-full">
-                <div className="assignee-chip">
+              <div className="property-value flex items-center justify-between w-full relative">
+                <button
+                  type="button"
+                  className="assignee-chip hover:bg-slate-800 transition-colors cursor-pointer border border-transparent hover:border-slate-700"
+                  onClick={() => setIsAssigneeOpen(!isAssigneeOpen)}
+                  title="Click to reassign"
+                >
                   <img
-                    src={selectedItem.assignee.avatar}
-                    alt={selectedItem.assignee.name}
+                    src={getSafeAvatar(selectedItem.assignee?.avatar, selectedItem.assignee?.name)}
+                    alt={selectedItem.assignee?.name || 'Assignee'}
                     className="assignee-avatar"
                   />
-                  <span>{selectedItem.assignee.name}</span>
-                </div>
+                  <span>{selectedItem.assignee?.name || 'Unassigned'}</span>
+                  <ChevronDown size={11} className="text-muted ml-1" />
+                </button>
+
+                {isAssigneeOpen && (
+                  <div className="dropdown-popover glass-panel animate-pop-in" style={{ minWidth: 200, zIndex: 60 }}>
+                    <div className="text-[10px] font-semibold text-muted px-2 py-1 uppercase tracking-wider">
+                      Reassign Task
+                    </div>
+                    {members.map((m) => {
+                      const isCurrent = (m.user_id === selectedItem.assignee?.id) || (m.profile?.full_name === selectedItem.assignee?.name);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className={`dropdown-option flex items-center gap-2 ${isCurrent ? 'active' : ''}`}
+                          onClick={() => {
+                            const newAssignee = {
+                              id: m.user_id,
+                              name: m.profile?.full_name || 'Member',
+                              avatar: getSafeAvatar(m.profile?.avatar_url, m.profile?.full_name),
+                            };
+                            updateBoardItem(
+                              selectedItem.id,
+                              { assignee: newAssignee }
+                            );
+                            setIsAssigneeOpen(false);
+                          }}
+                        >
+                          <img
+                            src={getSafeAvatar(m.profile?.avatar_url, m.profile?.full_name)}
+                            alt={m.profile?.full_name || 'Member'}
+                            className="w-4 h-4 rounded-full"
+                          />
+                          <span className="text-xs truncate">{m.profile?.full_name || 'Member'}</span>
+                          {isCurrent && <Check size={12} className="ml-auto text-emerald-400" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {selectedItem.assignee.id !== currentUser?.id ? (
                   <button
                     type="button"
                     className="btn-claim"
-                    onClick={() => claimBoardItem(selectedItem.id, selectedItem.version)}
+                    onClick={() => claimBoardItem(selectedItem.id)}
                     title="Claim this task for yourself"
                   >
                     <ShieldCheck size={13} />
@@ -371,10 +458,54 @@ export const ItemDetailPanel: React.FC = () => {
             <div className="property-row">
               <span className="property-label">Target SLA</span>
               <div className="property-value">
-                <div className="date-chip">
-                  <Calendar size={13} className="text-muted" />
-                  <span className="font-mono text-xs">{selectedItem.due_date}</span>
-                </div>
+                {isDueDateEditing ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      className="px-2 py-1 text-xs bg-slate-900 border border-emerald-500/50 rounded font-mono text-slate-200 outline-none w-36"
+                      value={dueDateInput}
+                      onChange={(e) => setDueDateInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          updateBoardItem(selectedItem.id, { due_date: dueDateInput.trim() || 'Next week' });
+                          setIsDueDateEditing(false);
+                        } else if (e.key === 'Escape') {
+                          setIsDueDateEditing(false);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="p-1 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                      onClick={() => {
+                        updateBoardItem(selectedItem.id, { due_date: dueDateInput.trim() || 'Next week' });
+                        setIsDueDateEditing(false);
+                      }}
+                    >
+                      <Check size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="p-1 rounded bg-slate-800 text-slate-400 hover:text-slate-200"
+                      onClick={() => setIsDueDateEditing(false)}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <div 
+                    className="date-chip cursor-pointer hover:border-slate-600 transition-colors"
+                    onClick={() => {
+                      setDueDateInput(selectedItem.due_date);
+                      setIsDueDateEditing(true);
+                    }}
+                    title="Click to edit due date"
+                  >
+                    <Calendar size={13} className="text-muted" />
+                    <span className="font-mono text-xs">{selectedItem.due_date}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -401,13 +532,59 @@ export const ItemDetailPanel: React.FC = () => {
             {/* Tags Property */}
             <div className="property-row">
               <span className="property-label">Tags</span>
-              <div className="property-value tags-row">
+              <div className="property-value tags-row flex items-center flex-wrap gap-1.5">
                 {selectedItem.tags.map((tag) => (
-                  <span key={tag} className="tag-pill">
+                  <span key={tag} className="tag-pill flex items-center gap-1 group">
                     <Tag size={10} />
-                    {tag}
+                    <span>{tag}</span>
+                    <button
+                      type="button"
+                      className="opacity-60 hover:opacity-100 transition-opacity ml-0.5 text-muted hover:text-red-400"
+                      onClick={() => {
+                        const newTags = selectedItem.tags.filter((t) => t !== tag);
+                        updateBoardItem(selectedItem.id, { tags: newTags });
+                      }}
+                      title={`Remove tag ${tag}`}
+                    >
+                      <X size={10} />
+                    </button>
                   </span>
                 ))}
+                {isAddingTag ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (newTagInput.trim() && !selectedItem.tags.includes(newTagInput.trim())) {
+                        const newTags = [...selectedItem.tags, newTagInput.trim()];
+                        updateBoardItem(selectedItem.id, { tags: newTags });
+                      }
+                      setNewTagInput('');
+                      setIsAddingTag(false);
+                    }}
+                    className="inline-flex items-center gap-1"
+                  >
+                    <input
+                      type="text"
+                      className="px-1.5 py-0.5 text-[11px] bg-slate-900 border border-slate-700 rounded font-mono text-slate-200 outline-none w-20"
+                      placeholder="Tag..."
+                      value={newTagInput}
+                      onChange={(e) => setNewTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setIsAddingTag(false);
+                      }}
+                      autoFocus
+                    />
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="text-[11px] px-1.5 py-0.5 rounded border border-dashed border-slate-700 text-muted hover:text-slate-200 hover:border-slate-500 transition-colors flex items-center gap-1"
+                    onClick={() => setIsAddingTag(true)}
+                  >
+                    <Plus size={10} />
+                    <span>Tag</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -430,17 +607,27 @@ export const ItemDetailPanel: React.FC = () => {
               {(selectedItem.subtasks || []).map((subtask) => (
                 <div
                   key={subtask.id}
-                  className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-900/40 border border-slate-800/60 hover:border-slate-700/80 cursor-pointer transition-colors"
+                  className="group flex items-center justify-between gap-2.5 p-2 rounded-lg bg-slate-900/40 border border-slate-800/60 hover:border-slate-700/80 cursor-pointer transition-colors"
                   onClick={() => toggleSubtask(subtask.id)}
                 >
-                  {subtask.completed ? (
-                    <CheckSquare size={16} className="text-emerald-400 flex-shrink-0" />
-                  ) : (
-                    <Square size={16} className="text-slate-500 flex-shrink-0" />
-                  )}
-                  <span className={`text-xs ${subtask.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>
-                    {subtask.title}
-                  </span>
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    {subtask.completed ? (
+                      <CheckSquare size={16} className="text-emerald-400 flex-shrink-0" />
+                    ) : (
+                      <Square size={16} className="text-slate-500 flex-shrink-0" />
+                    )}
+                    <span className={`text-xs break-all ${subtask.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>
+                      {subtask.title}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="opacity-0 group-hover:opacity-100 hover:text-rose-400 p-1 rounded transition-opacity text-slate-500 flex-shrink-0"
+                    onClick={(e) => handleDeleteSubtask(subtask.id, e)}
+                    title="Delete checklist item"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -496,7 +683,8 @@ export const ItemDetailPanel: React.FC = () => {
               className="description-textarea"
               placeholder="Add comprehensive specifications, incident timeline, or reproduction steps..."
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => handleDescriptionChange(e.target.value)}
+              onFocus={() => { isDescFocusedRef.current = true; }}
               onBlur={handleDescriptionBlur}
               rows={5}
             />
@@ -545,9 +733,16 @@ export const ItemDetailPanel: React.FC = () => {
                 selectedItem.comments.map((comm) => (
                   <div key={comm.id} className="comment-card" id={`comment-${comm.id}`}>
                     <div className="comment-top">
-                      <img src={comm.author_avatar} alt={comm.author_name} className="comment-avatar" />
+                      <img 
+                        src={getSafeAvatar(comm.author_avatar, comm.author_name)} 
+                        alt={comm.author_name} 
+                        className="comment-avatar"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = getSafeAvatar(null, comm.author_name);
+                        }}
+                      />
                       <div className="comment-meta">
-                        <span className="author-name">{comm.author_name}</span>
+                        <span className="author-name font-semibold">{comm.author_name}</span>
                         <span className="timestamp font-mono text-xs">{comm.timestamp}</span>
                       </div>
                     </div>

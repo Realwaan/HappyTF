@@ -61,12 +61,33 @@ export interface BoardSummary {
   folder_id?: string;
   name: string;
   icon_emoji: string;
+  color?: string;
+  template_id?: string;
   description: string;
   item_count: number;
   updated_at: string;
   member_avatars: string[];
   columns?: import('../lib/mondaydb/types').BoardColumn[];
 }
+
+export interface BoardTemplate {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  category: string;
+  groups: Array<{ name: string; color: string }>;
+  starterItems: Array<{
+    title: string;
+    status: BoardItem['status'];
+    priority: BoardItem['priority'];
+    due_date: string;
+    tags: string[];
+    description?: string;
+  }>;
+}
+
 
 export type {
   BoardColumn,
@@ -224,4 +245,39 @@ export interface GitHubCommit {
     avatar: string;
   };
   linked_ticket_number?: string;
+}
+
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  users: string[];
+}
+
+export interface ChannelMessage {
+  id: string;
+  channel_id: string;
+  workspace_id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar: string;
+  content: string;
+  parent_id?: string | null;
+  linked_ticket_number?: string | null;
+  reactions: MessageReaction[];
+  reply_count?: number;
+  is_system?: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface TeamChannel {
+  id: string;
+  workspace_id: string;
+  name: string;
+  topic: string;
+  is_private: boolean;
+  member_count?: number;
+  unread_count?: number;
+  created_by?: string;
+  created_at: string;
 }

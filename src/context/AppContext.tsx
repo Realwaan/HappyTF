@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   UserProfile, 
   Workspace, 
@@ -16,7 +16,8 @@ import {
   Folder,
   BoardColumn,
   SubItem,
-  ViewMode
+  ViewMode,
+  ItemComment
 } from '../types';
 import { 
   DEMO_USER, 
@@ -31,8 +32,10 @@ import {
   INITIAL_FOLDERS,
   DEFAULT_BOARD_COLUMNS
 } from '../lib/mock-data';
+import { BOARD_TEMPLATES } from '../lib/boardTemplates';
 import confetti from 'canvas-confetti';
 import { createClient, isSupabaseConfigured } from '../lib/supabase/client';
+import { getSafeAvatar, DEFAULT_AVATAR } from '../lib/avatarHelper';
 
 interface AppContextType {
   currentUser: UserProfile | null;
@@ -42,6 +45,7 @@ interface AppContextType {
   recentBoards: BoardSummary[];
   folders: Folder[];
   myWorkItems: MyWorkItem[];
+  allWorkspaceItems: BoardItem[];
   notifications: NotificationItem[];
   unreadCount: number;
   theme: 'dark' | 'light';
@@ -58,6 +62,12 @@ interface AppContextType {
   isShortcutsModalOpen: boolean;
   isContextModalOpen: boolean;
   isSlackModalOpen: boolean;
+  isTeamChatOpen: boolean;
+  setTeamChatOpen: (open: boolean) => void;
+  activeTeamChannelId: string;
+  setActiveTeamChannelId: (id: string) => void;
+  openTeamChat: (channelId?: string) => void;
+  closeTeamChat: () => void;
   isGitHubFeedOpen: boolean;
   setGitHubFeedOpen: (open: boolean) => void;
   toggleGitHubFeed: () => void;
@@ -75,6 +85,11 @@ interface AppContextType {
   boardItems: BoardItem[];
   boardColumns: BoardColumn[];
   selectedItem: BoardItem | null;
+
+  // Real-time CDC Handlers
+  onTicketInsert: (ticket: BoardItem) => void;
+  onTicketUpdate: (ticket: BoardItem) => void;
+  onTicketDelete: (ticketId: string) => void;
 
   // Folder & Structural Hierarchy Actions
   createFolder: (name: string, color?: string) => void;
@@ -95,7 +110,7 @@ interface AppContextType {
   closeItemDetail: () => void;
   selectNextItem: () => void;
   selectPrevItem: () => void;
-  addBoardItem: (groupId: string, title: string) => void;
+  addBoardItem: (groupId: string, title: string, options?: Partial<BoardItem>) => void;
   updateBoardItem: (itemId: string, updates: Partial<BoardItem>, ifVersion?: number) => { success: boolean; error?: string };
   claimBoardItem: (itemId: string, ifVersion?: number) => { success: boolean; error?: string };
   deleteBoardItem: (itemId: string) => void;
@@ -130,7 +145,13 @@ interface AppContextType {
   markAllNotificationsAsRead: () => void;
   markNotificationRead: (id: string) => void;
   updateWorkItemStatus: (id: string, newStatus: MyWorkItem['status']) => void;
-  createBoard: (name: string, iconEmoji: string, description: string) => void;
+  createBoard: (name: string, iconEmoji: string, description: string, color?: string, templateId?: string) => void;
+  registerTicketBroadcaster: (fn: (ticket: BoardItem, notif?: any) => void) => void;
+  registerTicketBroadcasters: (broadcasters: {
+    broadcastInsert?: (ticket: BoardItem, notif?: any) => void;
+    broadcastUpdate?: (ticket: BoardItem, notif?: any) => void;
+    broadcastDelete?: (ticketId: string, notif?: any) => void;
+  }) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -145,12 +166,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [myWorkItems, setMyWorkItems] = useState<MyWorkItem[]>(INITIAL_MY_WORK_ITEMS);
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
 
-  // Board engine state
+  // Board engine state with persistent local storage
   const [activeView, setActiveView] = useState<'home' | 'board'>('home');
   const [boardViewMode, setBoardViewMode] = useState<ViewMode>('table');
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [groupsMap, setGroupsMap] = useState<Record<string, BoardGroup[]>>(INITIAL_BOARD_GROUPS);
-  const [itemsMap, setItemsMap] = useState<Record<string, BoardItem[]>>(INITIAL_BOARD_ITEMS);
+  const [itemsMap, setItemsMap] = useState<Record<string, BoardItem[]>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('happytf_board_items');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') {
+            const sanitized: Record<string, BoardItem[]> = {};
+            for (const bId of Object.keys(parsed)) {
+              if (Array.isArray(parsed[bId])) {
+                sanitized[bId] = parsed[bId].map((it: BoardItem) => ({
+                  ...it,
+                  assignee: it.assignee ? {
+                    ...it.assignee,
+                    avatar: getSafeAvatar(it.assignee.avatar, it.assignee.name),
+                  } : {
+                    id: 'usr-demo-001',
+                    name: 'Alex Rivera',
+                    avatar: DEFAULT_AVATAR,
+                  },
+                }));
+              }
+            }
+            return { ...INITIAL_BOARD_ITEMS, ...sanitized };
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load itemsMap from localStorage', err);
+      }
+    }
+    return INITIAL_BOARD_ITEMS;
+  });
   const [selectedItem, setSelectedItem] = useState<BoardItem | null>(null);
 
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -169,6 +221,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [gitHubCommits, setGitHubCommits] = useState<GitHubCommit[]>(INITIAL_GITHUB_COMMITS);
   const [activeSettingsTab, setActiveSettingsTab] = useState<'general' | 'members' | 'roles' | 'danger'>('general');
 
+  const ticketBroadcasterRef = useRef<((ticket: BoardItem, notif?: any) => void) | null>(null);
+  const ticketInsertBroadcasterRef = useRef<((ticket: BoardItem, notif?: any) => void) | null>(null);
+  const ticketDeleteBroadcasterRef = useRef<((ticketId: string, notif?: any) => void) | null>(null);
+
+  const registerTicketBroadcaster = useCallback((fn: (ticket: BoardItem, notif?: any) => void) => {
+    ticketBroadcasterRef.current = fn;
+  }, []);
+
+  const registerTicketBroadcasters = useCallback((broadcasters: {
+    broadcastInsert?: (ticket: BoardItem, notif?: any) => void;
+    broadcastUpdate?: (ticket: BoardItem, notif?: any) => void;
+    broadcastDelete?: (ticketId: string, notif?: any) => void;
+  }) => {
+    if (broadcasters.broadcastInsert) ticketInsertBroadcasterRef.current = broadcasters.broadcastInsert;
+    if (broadcasters.broadcastUpdate) ticketBroadcasterRef.current = broadcasters.broadcastUpdate;
+    if (broadcasters.broadcastDelete) ticketDeleteBroadcasterRef.current = broadcasters.broadcastDelete;
+  }, []);
+
   const toggleMobileSidebar = () => setIsMobileSidebarOpen((prev) => !prev);
   const toggleGitHubFeed = () => setIsGitHubFeedOpen((prev) => !prev);
 
@@ -177,7 +247,149 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     selectedItemRef.current = selectedItem;
   }, [selectedItem]);
 
+  const activeBoardIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeBoardIdRef.current = activeBoardId;
+  }, [activeBoardId]);
+
+  const itemsMapRef = useRef<Record<string, BoardItem[]>>(INITIAL_BOARD_ITEMS);
+  useEffect(() => {
+    itemsMapRef.current = itemsMap;
+  }, [itemsMap]);
+
   const updateBoardItemRef = useRef<((itemId: string, updates: Partial<BoardItem>, ifVersion?: number) => { success: boolean; error?: string }) | null>(null);
+
+  // Save itemsMap to localStorage whenever updated
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('happytf_board_items', JSON.stringify(itemsMap));
+      } catch (err) {
+        console.warn('Failed to save itemsMap to localStorage', err);
+      }
+    }
+  }, [itemsMap]);
+
+  // Synchronize itemsMap across tabs on the same origin via storage event
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'happytf_board_items' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && typeof parsed === 'object') {
+            setItemsMap(parsed);
+            if (selectedItemRef.current) {
+              const curId = selectedItemRef.current.id;
+              for (const bId of Object.keys(parsed)) {
+                const found = parsed[bId]?.find((i: BoardItem) => i.id === curId);
+                if (found) {
+                  setSelectedItem(found);
+                  break;
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Sync server-persisted comments across browser profiles, incognito, and reloads
+  useEffect(() => {
+    fetch('/api/tickets/comments')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.comments && typeof data.comments === 'object') {
+          const remoteCommentsMap: Record<string, ItemComment[]> = data.comments;
+          setItemsMap((prev) => {
+            let changed = false;
+            const nextMap: Record<string, BoardItem[]> = {};
+
+            for (const bId of Object.keys(prev)) {
+              const list = prev[bId] || [];
+              const updatedList = list.map((item) => {
+                const remote = remoteCommentsMap[item.id];
+                if (remote && Array.isArray(remote) && remote.length > 0) {
+                  const existingMap = new Map((item.comments || []).map((c) => [c.id, c]));
+                  let itemChanged = false;
+                  remote.forEach((rc) => {
+                    if (!existingMap.has(rc.id)) {
+                      existingMap.set(rc.id, rc);
+                      itemChanged = true;
+                    }
+                  });
+                  if (itemChanged) {
+                    changed = true;
+                    const mergedComments = Array.from(existingMap.values());
+                    const updatedItem = { ...item, comments: mergedComments };
+                    if (selectedItemRef.current?.id === item.id) {
+                      setSelectedItem(updatedItem);
+                    }
+                    return updatedItem;
+                  }
+                }
+                return item;
+              });
+              nextMap[bId] = updatedList;
+            }
+
+            return changed ? nextMap : prev;
+          });
+        }
+      })
+      .catch((err) => console.warn('[Comments API] Could not sync remote comments', err));
+  }, [activeBoardId]);
+
+  // Sync server-persisted tasks across browser profiles, incognito, and reloads
+  useEffect(() => {
+    if (!activeBoardId) return;
+
+    fetch(`/api/tickets?board_id=${activeBoardId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+          const serverTickets: BoardItem[] = data.data;
+          setItemsMap((prev) => {
+            const currentList = prev[activeBoardId] || [];
+            const existingMap = new Map(currentList.map((i) => [i.id, i]));
+            let changed = false;
+
+            serverTickets.forEach((st) => {
+              const safeTicket: BoardItem = {
+                ...st,
+                assignee: st.assignee ? {
+                  ...st.assignee,
+                  avatar: getSafeAvatar(st.assignee.avatar, st.assignee.name),
+                } : {
+                  id: 'usr-demo-001',
+                  name: 'Alex Rivera',
+                  avatar: DEFAULT_AVATAR,
+                },
+              };
+              if (!existingMap.has(safeTicket.id)) {
+                existingMap.set(safeTicket.id, safeTicket);
+                changed = true;
+              } else {
+                const cur = existingMap.get(safeTicket.id)!;
+                if ((safeTicket.version || 1) > (cur.version || 1) || !cur.assignee?.avatar) {
+                  existingMap.set(safeTicket.id, { ...cur, ...safeTicket });
+                  changed = true;
+                }
+              }
+            });
+
+            if (changed) {
+              const mergedList = Array.from(existingMap.values());
+              return { ...prev, [activeBoardId]: mergedList };
+            }
+            return prev;
+          });
+        }
+      })
+      .catch((err) => console.warn('[Tickets API] Could not sync remote tickets', err));
+  }, [activeBoardId]);
 
   // Load theme & persistent settings
   useEffect(() => {
@@ -271,6 +483,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setIsContextModalOpen(true);
           return;
         }
+        if (e.key === '[') {
+          e.preventDefault();
+          setIsSidebarCollapsed((prev) => !prev);
+          return;
+        }
+        if (e.key === 'ArrowDown' && selectedItemRef.current && activeBoardIdRef.current) {
+          e.preventDefault();
+          const items = itemsMapRef.current[activeBoardIdRef.current] || [];
+          const curIdx = items.findIndex((i) => i.id === selectedItemRef.current?.id);
+          if (curIdx >= 0 && curIdx < items.length - 1) {
+            setSelectedItem(items[curIdx + 1]);
+          }
+          return;
+        }
+        if (e.key === 'ArrowUp' && selectedItemRef.current && activeBoardIdRef.current) {
+          e.preventDefault();
+          const items = itemsMapRef.current[activeBoardIdRef.current] || [];
+          const curIdx = items.findIndex((i) => i.id === selectedItemRef.current?.id);
+          if (curIdx > 0) {
+            setSelectedItem(items[curIdx - 1]);
+          }
+          return;
+        }
         if ((e.key === 's' || e.key === 'S') && selectedItemRef.current) {
           e.preventDefault();
           const curItem = selectedItemRef.current;
@@ -316,6 +551,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const currentBoardGroups = activeBoardId ? (groupsMap[activeBoardId] || []) : [];
   const currentBoardItems = activeBoardId ? (itemsMap[activeBoardId] || []) : [];
 
+  // Compile all workspace items across all boards for global memory & stats
+  const allWorkspaceItems = useMemo(() => {
+    return Object.values(itemsMap).flat();
+  }, [itemsMap]);
+
+  // Real-time Postgres CDC Handlers
+  const onTicketInsert = (ticket: BoardItem) => {
+    if (!ticket || !ticket.board_id) return;
+    const safeTicket: BoardItem = {
+      ...ticket,
+      assignee: ticket.assignee ? {
+        ...ticket.assignee,
+        avatar: getSafeAvatar(ticket.assignee.avatar, ticket.assignee.name),
+      } : {
+        id: 'usr-demo-001',
+        name: 'Alex Rivera',
+        avatar: DEFAULT_AVATAR,
+      },
+    };
+    setItemsMap((prev) => {
+      const list = prev[safeTicket.board_id] || [];
+      if (list.some((i) => i.id === safeTicket.id)) return prev;
+      return {
+        ...prev,
+        [safeTicket.board_id]: [safeTicket, ...list],
+      };
+    });
+  };
+
+  const onTicketUpdate = (ticket: BoardItem) => {
+    if (!ticket || !ticket.id) return;
+    const safeTicket: BoardItem = {
+      ...ticket,
+      ...(ticket.assignee ? {
+        assignee: {
+          ...ticket.assignee,
+          avatar: getSafeAvatar(ticket.assignee.avatar, ticket.assignee.name),
+        },
+      } : {}),
+    };
+    setItemsMap((prev) => {
+      const nextMap = { ...prev };
+      let updatedAny = false;
+      for (const bId of Object.keys(nextMap)) {
+        if (!safeTicket.board_id || bId === safeTicket.board_id) {
+          const list = nextMap[bId] || [];
+          if (list.some((i) => i.id === safeTicket.id)) {
+            nextMap[bId] = list.map((i) => (i.id === safeTicket.id ? { ...i, ...safeTicket } : i));
+            updatedAny = true;
+          }
+        }
+      }
+      return updatedAny ? nextMap : prev;
+    });
+    if (selectedItemRef.current?.id === safeTicket.id) {
+      setSelectedItem((prev) => (prev ? { ...prev, ...safeTicket } : safeTicket));
+    }
+  };
+
+  const onTicketDelete = (ticketId: string) => {
+    if (!ticketId) return;
+    setItemsMap((prev) => {
+      const nextMap = { ...prev };
+      for (const bId of Object.keys(nextMap)) {
+        nextMap[bId] = nextMap[bId].filter((i) => i.id !== ticketId);
+      }
+      return nextMap;
+    });
+    if (selectedItem?.id === ticketId) {
+      setSelectedItem(null);
+    }
+  };
+
   const navigateToBoard = (boardId: string) => {
     setActiveBoardId(boardId);
     setActiveView('board');
@@ -327,16 +635,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const openItemDetail = (itemOrId: BoardItem | string) => {
+    let targetItem: BoardItem | undefined;
     if (typeof itemOrId === 'string') {
-      // Find in current board items or across all items
-      let found: BoardItem | undefined;
       for (const list of Object.values(itemsMap)) {
-        found = list.find((i) => i.id === itemOrId);
-        if (found) break;
+        targetItem = list.find((i) => i.id === itemOrId);
+        if (targetItem) break;
       }
-      if (found) setSelectedItem(found);
     } else {
-      setSelectedItem(itemOrId);
+      targetItem = itemOrId;
+    }
+
+    if (targetItem) {
+      setSelectedItem(targetItem);
+
+      // Fetch fresh comments from server API to guarantee real-time consistency
+      const ticketId = targetItem.id;
+      fetch(`/api/tickets/comments?ticket_id=${ticketId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.comments) && data.comments.length > 0) {
+            const remoteComments: ItemComment[] = data.comments;
+            setItemsMap((prev) => {
+              let changed = false;
+              const nextMap: Record<string, BoardItem[]> = {};
+
+              for (const bId of Object.keys(prev)) {
+                nextMap[bId] = (prev[bId] || []).map((i) => {
+                  if (i.id === ticketId) {
+                    const existingMap = new Map((i.comments || []).map((c) => [c.id, c]));
+                    let itemChanged = false;
+                    remoteComments.forEach((rc) => {
+                      if (!existingMap.has(rc.id)) {
+                        existingMap.set(rc.id, rc);
+                        itemChanged = true;
+                      }
+                    });
+                    if (itemChanged) {
+                      changed = true;
+                      const merged = Array.from(existingMap.values());
+                      const updated = { ...i, comments: merged };
+                      if (selectedItemRef.current?.id === ticketId) {
+                        setSelectedItem(updated);
+                      }
+                      return updated;
+                    }
+                  }
+                  return i;
+                });
+              }
+
+              return changed ? nextMap : prev;
+            });
+          }
+        })
+        .catch(() => {});
     }
   };
 
@@ -362,30 +714,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addBoardItem = (groupId: string, title: string) => {
+  const addBoardItem = (groupId: string, title: string, options?: Partial<BoardItem>) => {
     if (!activeBoardId || !title.trim()) return;
 
     const ticketNum = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
+    const assigneeInput = options?.assignee || {
+      id: currentUser?.id || 'usr-demo-001',
+      name: currentUser?.full_name || 'Alex Rivera',
+      avatar: currentUser?.avatar_url || DEMO_USER.avatar_url!,
+    };
+    const assignee = {
+      id: assigneeInput.id || 'usr-demo-001',
+      name: assigneeInput.name || 'Alex Rivera',
+      avatar: getSafeAvatar(assigneeInput.avatar, assigneeInput.name),
+    };
+
+    const statusPriority = options?.priority || 'medium';
+    const status = options?.status || 'Working on it';
+    const statusColor = options?.status_color || (status === 'Done' ? '#10b981' : status === 'In Review' ? '#8b5cf6' : status === 'Stuck' ? '#ef4444' : '#f59e0b');
+
     const newItem: BoardItem = {
       id: `item-${Date.now()}`,
       ticket_number: ticketNum,
       board_id: activeBoardId,
       group_id: groupId,
       title: title.trim(),
-      status: 'Working on it',
-      status_color: '#f59e0b',
-      priority: 'medium',
-      severity: 'minor',
-      due_date: 'Next week',
-      sla_due_at: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-      assignee: {
-        id: currentUser?.id || 'usr-demo-001',
-        name: currentUser?.full_name || 'Alex Rivera',
-        avatar: currentUser?.avatar_url || DEMO_USER.avatar_url!,
-      },
-      tags: ['Ticket'],
-      subtasks: [],
-      description: 'Add detailed requirements, deliverables, and acceptance criteria here.',
+      status,
+      status_color: statusColor,
+      priority: statusPriority,
+      severity: options?.severity || 'minor',
+      due_date: options?.due_date || 'Next week',
+      sla_due_at: options?.sla_due_at || new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+      assignee,
+      tags: options?.tags || ['Ticket'],
+      subtasks: options?.subtasks || [],
+      description: options?.description || 'Add detailed requirements, deliverables, and acceptance criteria here.',
       version: 1,
       updated_at: new Date().toISOString(),
       activities: [
@@ -403,6 +766,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       [activeBoardId]: [...(prev[activeBoardId] || []), newItem],
     }));
+
+    // 1. Broadcast new task to other sessions live
+    const authorName = currentUser?.full_name || 'Alex Rivera';
+    const createNotif = {
+      userId: currentUser?.id || 'usr-demo-001',
+      userName: authorName,
+      userAvatar: currentUser?.avatar_url || DEMO_USER.avatar_url,
+      userColor: '#10b981',
+      action: 'create',
+      message: `${authorName} created task: "${newItem.title}"`,
+    };
+    ticketInsertBroadcasterRef.current?.(newItem, createNotif);
+
+    // 2. Persist new task to server
+    fetch('/api/tickets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...newItem,
+        workspace_id: currentWorkspace?.id || 'ws-default',
+      }),
+    }).catch((err) => console.warn('[Tickets API] Failed to persist new ticket', err));
+
+    // If assigned to current user, also add to myWorkItems
+    if (assignee.id === currentUser?.id || assignee.name === currentUser?.full_name) {
+      const activeBoardName = activeBoard?.name || 'Board';
+      const myWork: MyWorkItem = {
+        id: newItem.id,
+        board_id: activeBoardId,
+        board_name: activeBoardName,
+        workspace_id: currentWorkspace?.id || 'ws-default',
+        title: newItem.title,
+        status: newItem.status,
+        status_color: newItem.status_color,
+        priority: newItem.priority,
+        due_date: newItem.due_date,
+        assignee_id: assignee.id,
+        is_overdue: false,
+      };
+      setMyWorkItems((prev) => [myWork, ...prev]);
+    }
 
     // Update board item counter
     if (currentWorkspace) {
@@ -428,24 +832,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!existing) return { success: false, error: 'Item not found' };
 
     const currentVersion = existing.version || 1;
-    if (ifVersion !== undefined && ifVersion !== currentVersion) {
-      const conflictNotif: NotificationItem = {
-        id: `notif-conflict-${Date.now()}`,
-        title: 'Optimistic Concurrency Conflict',
-        description: `Item was modified by another session (current v${currentVersion}, expected v${ifVersion}).`,
-        timestamp: 'Just now',
-        unread: true,
-        type: 'system',
-      };
-      setNotifications((prev) => [conflictNotif, ...prev]);
-      return { 
-        success: false, 
-        error: `Conflict: Item was modified (current: v${currentVersion}, your copy: v${ifVersion}).` 
+    // Auto-reconcile version so collaborative edits from parallel sessions do not conflict
+    const nextVersion = Math.max(currentVersion, ifVersion || 0) + 1;
+    const nextUpdatedAt = new Date().toISOString();
+
+    const safeUpdates: Partial<BoardItem> = { ...updates };
+    if (safeUpdates.assignee) {
+      safeUpdates.assignee = {
+        ...safeUpdates.assignee,
+        avatar: getSafeAvatar(safeUpdates.assignee.avatar, safeUpdates.assignee.name),
       };
     }
-
-    const nextVersion = currentVersion + 1;
-    const nextUpdatedAt = new Date().toISOString();
 
     setItemsMap((prev) => ({
       ...prev,
@@ -453,11 +850,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (item.id === itemId) {
           const updated: BoardItem = { 
             ...item, 
-            ...updates,
+            ...safeUpdates,
             version: nextVersion,
             updated_at: nextUpdatedAt
           };
-          if (selectedItem?.id === itemId) {
+          if (selectedItemRef.current?.id === itemId) {
             setSelectedItem(updated);
           }
           return updated;
@@ -465,6 +862,138 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return item;
       }),
     }));
+
+    const actorName = currentUser?.full_name || 'Alex Rivera';
+    let notifPayload = undefined;
+    const ticketLabel = existing.ticket_number || existing.title;
+
+    if (updates.status && updates.status !== existing.status) {
+      notifPayload = {
+        userId: currentUser?.id || 'usr-demo-001',
+        userName: actorName,
+        userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
+        userColor: updates.status === 'Done' ? '#10b981' : '#3b82f6',
+        action: 'status_change',
+        message: `${actorName} marked ${ticketLabel} as ${updates.status}`,
+      };
+    } else if (updates.assignee) {
+      notifPayload = {
+        userId: currentUser?.id || 'usr-demo-001',
+        userName: actorName,
+        userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
+        userColor: '#8b5cf6',
+        action: 'assignment',
+        message: `${actorName} assigned ${ticketLabel} to ${updates.assignee.name}`,
+      };
+    } else if (updates.subtasks && Array.isArray(updates.subtasks)) {
+      const oldDone = (existing.subtasks || []).filter((s) => s.completed).length;
+      const newDone = updates.subtasks.filter((s) => s.completed).length;
+      if (newDone !== oldDone) {
+        notifPayload = {
+          userId: currentUser?.id || 'usr-demo-001',
+          userName: actorName,
+          userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
+          userColor: '#10b981',
+          action: 'checklist',
+          message: `${actorName} updated subtasks (${newDone}/${updates.subtasks.length} done) on ${ticketLabel}`,
+        };
+      } else if (updates.subtasks.length !== (existing.subtasks || []).length) {
+        notifPayload = {
+          userId: currentUser?.id || 'usr-demo-001',
+          userName: actorName,
+          userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
+          userColor: '#6366f1',
+          action: 'checklist',
+          message: `${actorName} updated checklist items on ${ticketLabel}`,
+        };
+      }
+    } else if (updates.priority && updates.priority !== existing.priority) {
+      notifPayload = {
+        userId: currentUser?.id || 'usr-demo-001',
+        userName: actorName,
+        userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
+        userColor: '#f59e0b',
+        action: 'priority_change',
+        message: `${actorName} set priority to ${updates.priority} on ${ticketLabel}`,
+      };
+    } else if (updates.severity && updates.severity !== existing.severity) {
+      notifPayload = {
+        userId: currentUser?.id || 'usr-demo-001',
+        userName: actorName,
+        userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
+        userColor: '#ef4444',
+        action: 'severity_change',
+        message: `${actorName} set severity to ${updates.severity} on ${ticketLabel}`,
+      };
+    } else if (updates.tags && JSON.stringify(updates.tags) !== JSON.stringify(existing.tags)) {
+      notifPayload = {
+        userId: currentUser?.id || 'usr-demo-001',
+        userName: actorName,
+        userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
+        userColor: '#06b6d4',
+        action: 'tag_update',
+        message: `${actorName} updated tags on ${ticketLabel}`,
+      };
+    } else if (updates.due_date && updates.due_date !== existing.due_date) {
+      notifPayload = {
+        userId: currentUser?.id || 'usr-demo-001',
+        userName: actorName,
+        userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
+        userColor: '#3b82f6',
+        action: 'due_date',
+        message: `${actorName} set due date to ${updates.due_date} on ${ticketLabel}`,
+      };
+    } else if (updates.sub_items && Array.isArray(updates.sub_items)) {
+      notifPayload = {
+        userId: currentUser?.id || 'usr-demo-001',
+        userName: actorName,
+        userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
+        userColor: '#10b981',
+        action: 'sub_items',
+        message: `${actorName} updated sub-items on ${ticketLabel}`,
+      };
+    }
+
+    const updatedItemPayload: BoardItem = {
+      ...existing,
+      ...safeUpdates,
+      version: nextVersion,
+      updated_at: nextUpdatedAt,
+    };
+
+    // 1. Broadcast update to other sessions live
+    ticketBroadcasterRef.current?.(updatedItemPayload, notifPayload);
+
+    // 2. Persist update to server
+    fetch(`/api/tickets/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        updates,
+        if_version: ifVersion,
+        actor_name: actorName,
+        board_id: activeBoardId,
+      }),
+    }).catch((err) => console.warn('[Tickets API] Failed to update ticket', err));
+
+    // Synchronize to myWorkItems if present
+    if (updates.status || updates.priority || updates.due_date || updates.title || updates.assignee) {
+      setMyWorkItems((prev) =>
+        prev.map((m) => {
+          if (m.id === itemId) {
+            return {
+              ...m,
+              ...(updates.title ? { title: updates.title } : {}),
+              ...(updates.status ? { status: updates.status, status_color: updates.status_color || m.status_color } : {}),
+              ...(updates.priority ? { priority: updates.priority } : {}),
+              ...(updates.due_date ? { due_date: updates.due_date } : {}),
+              ...(updates.assignee ? { assignee_id: updates.assignee.id } : {}),
+            };
+          }
+          return m;
+        })
+      );
+    }
 
     return { success: true };
   };
@@ -498,7 +1027,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const userName = currentUser?.full_name || 'Alex Rivera';
-    const userAvatar = currentUser?.avatar_url || DEMO_USER.avatar_url!;
+    const userAvatar = getSafeAvatar(currentUser?.avatar_url, userName);
     const nextVersion = currentVersion + 1;
     const nextUpdatedAt = new Date().toISOString();
 
@@ -528,7 +1057,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             updated_at: nextUpdatedAt,
             activities: [claimActivity, ...item.activities],
           };
-          if (selectedItem?.id === itemId) {
+          if (selectedItemRef.current?.id === itemId) {
             setSelectedItem(updated);
           }
           return updated;
@@ -536,6 +1065,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return item;
       }),
     }));
+
+    const claimBroadcastNotif = {
+      userId: currentUser?.id || 'usr-demo-001',
+      userName,
+      userAvatar,
+      userColor: '#10b981',
+      action: 'claim',
+      message: `${userName} claimed ${existing.ticket_number || existing.title}`,
+    };
+
+    const claimedItemPayload: BoardItem = {
+      ...existing,
+      assignee: {
+        id: currentUser?.id || 'usr-demo-001',
+        name: userName,
+        avatar: userAvatar,
+      },
+      status: 'Working on it',
+      status_color: '#f59e0b',
+      claimed_by: userName,
+      claimed_at: nextUpdatedAt,
+      version: nextVersion,
+      updated_at: nextUpdatedAt,
+      activities: [claimActivity, ...existing.activities],
+    };
+
+    // 1. Broadcast claim to other sessions live
+    ticketBroadcasterRef.current?.(claimedItemPayload, claimBroadcastNotif);
+
+    // 2. Persist claim to server
+    fetch(`/api/tickets/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        updates: {
+          assignee: claimedItemPayload.assignee,
+          status: 'Working on it',
+          status_color: '#f59e0b',
+          claimed_by: userName,
+          claimed_at: nextUpdatedAt,
+        },
+        if_version: ifVersion,
+        actor_name: userName,
+        board_id: activeBoardId,
+      }),
+    }).catch(() => {});
 
     // Micro celebration confetti
     try {
@@ -558,6 +1133,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       type: 'assignment',
     };
     setNotifications((prev) => [successNotif, ...prev]);
+
+    // Keep myWorkItems in sync
+    setMyWorkItems((prev) =>
+      prev.map((m) =>
+        m.id === itemId
+          ? {
+              ...m,
+              status: 'Working on it',
+              status_color: '#f59e0b',
+              assignee_id: currentUser?.id || 'usr-demo-001',
+            }
+          : m
+      )
+    );
 
     return { success: true };
   };
@@ -612,37 +1201,105 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteBoardItem = (itemId: string) => {
     if (!activeBoardId) return;
+
+    const currentList = itemsMap[activeBoardId] || [];
+    const existing = currentList.find((i) => i.id === itemId);
+    const itemTitle = existing?.title || 'task';
+    const actorName = currentUser?.full_name || 'Alex Rivera';
+
     setItemsMap((prev) => ({
       ...prev,
       [activeBoardId]: (prev[activeBoardId] || []).filter((i) => i.id !== itemId),
     }));
-    if (selectedItem?.id === itemId) {
+    setMyWorkItems((prev) => prev.filter((m) => m.id !== itemId));
+    if (selectedItemRef.current?.id === itemId) {
       setSelectedItem(null);
     }
+
+    // 1. Broadcast delete to other sessions live
+    const deleteNotif = {
+      userId: currentUser?.id || 'usr-demo-001',
+      userName: actorName,
+      userAvatar: currentUser?.avatar_url || DEMO_USER.avatar_url,
+      userColor: '#ef4444',
+      action: 'delete',
+      message: `${actorName} deleted ${existing?.ticket_number || itemTitle}`,
+    };
+    ticketDeleteBroadcasterRef.current?.(itemId, deleteNotif);
+
+    // 2. Persist deletion to server
+    fetch(`/api/tickets/${itemId}`, {
+      method: 'DELETE',
+    }).catch((err) => console.warn('[Tickets API] Failed to delete ticket', err));
   };
 
   const addItemComment = (itemId: string, content: string) => {
     if (!activeBoardId || !content.trim()) return;
 
-    const newComment = {
-      id: `comm-${Date.now()}`,
-      author_name: currentUser?.full_name || 'Alex Rivera',
-      author_avatar: currentUser?.avatar_url || DEMO_USER.avatar_url!,
+    const authorName = currentUser?.full_name || 'Alex Rivera';
+    const authorAvatar = currentUser?.avatar_url || DEMO_USER.avatar_url!;
+    const authorId = currentUser?.id || 'usr-demo-001';
+
+    const newComment: ItemComment = {
+      id: `comm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      author_name: authorName,
+      author_avatar: authorAvatar,
       content: content.trim(),
       timestamp: 'Just now',
       reactions: [],
     };
 
-    updateBoardItem(itemId, {
-      comments: [...(selectedItem?.comments || []), newComment],
-    });
+    const currentList = itemsMap[activeBoardId] || [];
+    const targetItem = currentList.find((i) => i.id === itemId) || selectedItemRef.current;
+    const existingComments = targetItem?.comments || [];
+    const updatedComments = [...existingComments, newComment];
+
+    updateBoardItem(itemId, { comments: updatedComments });
+
+    const ticketTitle = targetItem?.title || 'task';
+    const shortText = content.length > 50 ? `${content.slice(0, 47)}...` : content;
+    const notif = {
+      userId: authorId,
+      userName: authorName,
+      userAvatar: authorAvatar,
+      userColor: '#3b82f6',
+      action: 'comment' as const,
+      message: `${authorName} commented on ${ticketTitle}: "${shortText}"`,
+    };
+
+    if (targetItem) {
+      const updatedItem: BoardItem = {
+        ...targetItem,
+        comments: updatedComments,
+        version: (targetItem.version || 1) + 1,
+        updated_at: new Date().toISOString(),
+      };
+      if (ticketBroadcasterRef.current) {
+        ticketBroadcasterRef.current(updatedItem, notif);
+      }
+    }
+
+    // Persist comment to server endpoint
+    fetch('/api/tickets/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        board_id: activeBoardId,
+        ticket_id: itemId,
+        comment: newComment,
+      }),
+    }).catch((err) => console.warn('[Comments API] Failed to persist comment', err));
   };
 
   const toggleCommentReaction = (itemId: string, commentId: string, emoji: string) => {
-    if (!selectedItem) return;
+    const currentItem = selectedItemRef.current?.id === itemId 
+      ? selectedItemRef.current 
+      : (activeBoardId ? (itemsMap[activeBoardId] || []).find((i) => i.id === itemId) : null);
+    if (!currentItem) return;
+
     const userName = currentUser?.full_name || 'Alex Rivera';
 
-    const updatedComments = selectedItem.comments.map((comm) => {
+    const updatedComments = (currentItem.comments || []).map((comm) => {
       if (comm.id === commentId) {
         const existing = comm.reactions.find((r) => r.emoji === emoji);
         let nextReactions;
@@ -671,6 +1328,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     updateBoardItem(itemId, { comments: updatedComments });
+
+    const updatedItem: BoardItem = {
+      ...currentItem,
+      comments: updatedComments,
+      version: (currentItem.version || 1) + 1,
+      updated_at: new Date().toISOString(),
+    };
+    if (ticketBroadcasterRef.current) {
+      ticketBroadcasterRef.current(updatedItem);
+    }
+
+    fetch('/api/tickets/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticket_id: itemId,
+        comments: updatedComments,
+      }),
+    }).catch((err) => console.warn('[Comments API] Failed to persist reaction', err));
   };
 
   const toggleGroupCollapse = (groupId: string) => {
@@ -961,19 +1637,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : item
       )
     );
+
+    // Sync status change across boards in itemsMap
+    setItemsMap((prev) => {
+      let changed = false;
+      const nextMap = { ...prev };
+      for (const bId of Object.keys(nextMap)) {
+        if (nextMap[bId].some((item) => item.id === id)) {
+          changed = true;
+          nextMap[bId] = nextMap[bId].map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  status: newStatus,
+                  status_color: colorMap[newStatus],
+                  version: (item.version || 1) + 1,
+                  updated_at: new Date().toISOString(),
+                }
+              : item
+          );
+        }
+      }
+      return changed ? nextMap : prev;
+    });
+
+    if (selectedItem?.id === id) {
+      setSelectedItem((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: newStatus,
+              status_color: colorMap[newStatus],
+              version: (prev.version || 1) + 1,
+              updated_at: new Date().toISOString(),
+            }
+          : null
+      );
+    }
   };
 
-  const createBoard = (name: string, iconEmoji: string, description: string) => {
+  const createBoard = (
+    name: string, 
+    iconEmoji: string, 
+    description: string, 
+    color?: string, 
+    templateId?: string
+  ) => {
     if (!currentWorkspace) return;
     const wsId = currentWorkspace.id;
     const newBoardId = `board-${Date.now()}`;
+    const matchedTemplate = templateId ? BOARD_TEMPLATES.find((t) => t.id === templateId) : undefined;
+
+    const boardColor = color || matchedTemplate?.color || '#6366f1';
+    const boardIcon = iconEmoji || matchedTemplate?.icon || '📋';
+
+    // Prepare groups from template or fallback
+    const groups: BoardGroup[] = matchedTemplate && matchedTemplate.groups.length > 0
+      ? matchedTemplate.groups.map((g, idx) => ({
+          id: `grp-${Date.now()}-${idx}`,
+          board_id: newBoardId,
+          name: g.name,
+          color: g.color,
+          collapsed: false,
+        }))
+      : [
+          { id: `grp-${Date.now()}-todo`, board_id: newBoardId, name: 'To Do', color: '#6366f1' },
+          { id: `grp-${Date.now()}-progress`, board_id: newBoardId, name: 'In Progress', color: '#f59e0b' },
+          { id: `grp-${Date.now()}-done`, board_id: newBoardId, name: 'Done', color: '#10b981' },
+        ];
+
+    // Prepare starter items from template
+    const starterItems: BoardItem[] = (matchedTemplate?.starterItems || []).map((item, idx) => {
+      const ticketNum = `TK-${Math.floor(2000 + idx * 100 + Math.random() * 50)}`;
+      const targetGroup = groups[Math.min(idx, groups.length - 1)];
+      const statusColor = item.status === 'Done' ? '#10b981' : item.status === 'In Review' ? '#8b5cf6' : item.status === 'Stuck' ? '#ef4444' : '#f59e0b';
+      return {
+        id: `item-${Date.now()}-${idx}`,
+        ticket_number: ticketNum,
+        board_id: newBoardId,
+        group_id: targetGroup.id,
+        title: item.title,
+        status: item.status,
+        status_color: statusColor,
+        priority: item.priority,
+        severity: 'minor',
+        due_date: item.due_date,
+        sla_due_at: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+        assignee: {
+          id: currentUser?.id || 'usr-demo-001',
+          name: currentUser?.full_name || 'Alex Rivera',
+          avatar: currentUser?.avatar_url || DEMO_USER.avatar_url!,
+        },
+        tags: item.tags || ['Ticket'],
+        subtasks: [],
+        description: item.description || 'Deliverable scoping and acceptance requirements.',
+        version: 1,
+        updated_at: new Date().toISOString(),
+        activities: [
+          {
+            id: `act-${Date.now()}-${idx}`,
+            author_name: currentUser?.full_name || 'Alex Rivera',
+            action: `Generated from template "${matchedTemplate?.name}"`,
+            timestamp: 'Just now',
+          },
+        ],
+        comments: [],
+      };
+    });
+
     const newBoard: BoardSummary = {
       id: newBoardId,
       workspace_id: wsId,
-      name: name.trim() || 'Untitled Board',
-      icon_emoji: iconEmoji || '📋',
-      description: description || 'New project board',
-      item_count: 0,
+      name: name.trim() || matchedTemplate?.name || 'Untitled Board',
+      icon_emoji: boardIcon,
+      color: boardColor,
+      template_id: templateId,
+      description: description || matchedTemplate?.description || 'New project board',
+      item_count: starterItems.length,
       updated_at: 'Just now',
       member_avatars: [currentUser?.avatar_url || DEMO_USER.avatar_url!],
     };
@@ -983,19 +1763,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       [wsId]: [newBoard, ...(prev[wsId] || [])],
     }));
 
-    // Initialize groups for the new board
     setGroupsMap((prev) => ({
       ...prev,
-      [newBoardId]: [
-        { id: `grp-${Date.now()}-todo`, board_id: newBoardId, name: 'To Do', color: '#6366f1' },
-        { id: `grp-${Date.now()}-progress`, board_id: newBoardId, name: 'In Progress', color: '#f59e0b' },
-        { id: `grp-${Date.now()}-done`, board_id: newBoardId, name: 'Done', color: '#10b981' },
-      ],
+      [newBoardId]: groups,
     }));
 
     setItemsMap((prev) => ({
       ...prev,
-      [newBoardId]: [],
+      [newBoardId]: starterItems,
     }));
 
     // Switch view to the new board
@@ -1081,60 +1856,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addSubItem = (itemId: string, title: string) => {
     if (!activeBoardId) return;
+    const currentList = itemsMap[activeBoardId] || [];
+    const item = currentList.find((i) => i.id === itemId);
+    if (!item) return;
+
     const newSub: SubItem = {
       id: `sub-${Date.now()}`,
       parent_id: itemId,
       title: title.trim() || 'New sub-item',
       status: 'Working on it',
       status_color: '#f59e0b',
-      assignee: currentUser ? { id: currentUser.id, name: currentUser.full_name, avatar: currentUser.avatar_url || '' } : undefined,
+      assignee: currentUser ? { 
+        id: currentUser.id, 
+        name: currentUser.full_name, 
+        avatar: getSafeAvatar(currentUser.avatar_url, currentUser.full_name) 
+      } : undefined,
       due_date: 'Tomorrow',
       number_val: 1,
       completed: false,
     };
-    setItemsMap((prev) => ({
-      ...prev,
-      [activeBoardId]: (prev[activeBoardId] || []).map((item) => {
-        if (item.id !== itemId) return item;
-        const subs = item.sub_items || [];
-        return {
-          ...item,
-          sub_items: [...subs, newSub],
-          version: (item.version || 1) + 1,
-        };
-      }),
-    }));
+
+    const updatedSubItems = [...(item.sub_items || []), newSub];
+    updateBoardItem(itemId, { sub_items: updatedSubItems });
   };
 
   const updateSubItem = (itemId: string, subItemId: string, updates: Partial<SubItem>) => {
     if (!activeBoardId) return;
-    setItemsMap((prev) => ({
-      ...prev,
-      [activeBoardId]: (prev[activeBoardId] || []).map((item) => {
-        if (item.id !== itemId) return item;
-        const subs = item.sub_items || [];
-        return {
-          ...item,
-          sub_items: subs.map((s) => s.id === subItemId ? { ...s, ...updates } : s),
-          version: (item.version || 1) + 1,
-        };
-      }),
-    }));
+    const currentList = itemsMap[activeBoardId] || [];
+    const item = currentList.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const updatedSubItems = (item.sub_items || []).map((s) =>
+      s.id === subItemId ? { ...s, ...updates } : s
+    );
+    updateBoardItem(itemId, { sub_items: updatedSubItems });
   };
 
   const deleteSubItem = (itemId: string, subItemId: string) => {
     if (!activeBoardId) return;
-    setItemsMap((prev) => ({
-      ...prev,
-      [activeBoardId]: (prev[activeBoardId] || []).map((item) => {
-        if (item.id !== itemId) return item;
-        return {
-          ...item,
-          sub_items: (item.sub_items || []).filter((s) => s.id !== subItemId),
-          version: (item.version || 1) + 1,
-        };
-      }),
-    }));
+    const currentList = itemsMap[activeBoardId] || [];
+    const item = currentList.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const updatedSubItems = (item.sub_items || []).filter((s) => s.id !== subItemId);
+    updateBoardItem(itemId, { sub_items: updatedSubItems });
   };
 
   return (
@@ -1147,6 +1912,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recentBoards: currentBoards,
         folders: currentFolders,
         myWorkItems,
+        allWorkspaceItems,
         notifications,
         unreadCount,
         theme,
@@ -1172,6 +1938,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         boardItems: currentBoardItems,
         boardColumns: currentBoardColumns,
         selectedItem,
+        onTicketInsert,
+        onTicketUpdate,
+        onTicketDelete,
         createFolder,
         toggleFolderCollapse,
         deleteFolder,
@@ -1227,6 +1996,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationRead,
         updateWorkItemStatus,
         createBoard,
+        registerTicketBroadcaster,
+        registerTicketBroadcasters,
       }}
     >
       {children}

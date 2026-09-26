@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MyWorkItem } from '../../types';
+import { getSafeAvatar } from '../../lib/avatarHelper';
 import { 
   CheckCircle2, 
   Clock, 
@@ -363,7 +364,7 @@ export const MyWorkDashboard: React.FC = () => {
                         {board.member_avatars.map((av, idx) => (
                           <img
                             key={idx}
-                            src={av}
+                            src={getSafeAvatar(av)}
                             alt={`${board.name} team member ${idx + 1}`}
                             className="stacked-avatar"
                             style={{ zIndex: 10 - idx }}
