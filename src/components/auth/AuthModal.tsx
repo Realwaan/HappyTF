@@ -31,8 +31,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
   const { login, signup, loginWithOAuth, loginWithMagicLink } = useApp();
   const [mode, setMode] = useState<'login' | 'signup' | 'magic' | 'reset'>(defaultMode);
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('alex.rivera@happytf.dev');
-  const [password, setPassword] = useState('HappyTF@2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [honeypot, setHoneypot] = useState('');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -141,8 +141,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
             {mode === 'reset' && 'Reset Password'}
           </h2>
           <p className="auth-subtext">
-            {mode === 'login' && 'Enter your credentials or jump in with demo mode.'}
-            {mode === 'signup' && 'Join thousands of high-velocity teams running on HappyTF.'}
+            {mode === 'login' && 'Enter your credentials to access your workspaces.'}
+            {mode === 'signup' && 'Join high-velocity teams running on HappyTF.'}
             {mode === 'magic' && 'We’ll email you an instant, secure sign-in link.'}
             {mode === 'reset' && 'Enter your account email to receive a recovery token.'}
           </p>
@@ -209,7 +209,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
                 <input
                   id="auth-full-name"
                   type="text"
-                  placeholder="e.g. Alex Rivera"
+                  placeholder="Your full name"
                   className="input-field with-icon"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}

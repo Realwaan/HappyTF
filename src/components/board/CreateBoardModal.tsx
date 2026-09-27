@@ -5,6 +5,7 @@ import { useApp } from '../../context/AppContext';
 import { X, Kanban, Plus, LayoutGrid, Check, Sparkles, Layers, AlertTriangle, Users, Folder } from 'lucide-react';
 import { AVAILABLE_ICONS, IconBadge } from '../common/IconBadge';
 import { BOARD_TEMPLATES } from '../../lib/boardTemplates';
+import { isDeployed } from '@/lib/environment';
 
 interface CreateBoardModalProps {
   isOpen: boolean;
@@ -25,8 +26,10 @@ const COLOR_OPTIONS = [
 export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose }) => {
   const { createBoard, folders } = useApp();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('sprint-agile');
-  const [boardName, setBoardName] = useState('Sprint Planning & Agile Delivery');
-  const [description, setDescription] = useState('High-velocity two-week sprint tracker with backlog scoping, active delivery, and QA review stages.');
+  const [boardName, setBoardName] = useState(isDeployed() ? '' : 'Sprint Planning & Agile Delivery');
+  const [description, setDescription] = useState(
+    isDeployed() ? '' : 'High-velocity two-week sprint tracker with backlog scoping, active delivery, and QA review stages.'
+  );
   const [selectedIcon, setSelectedIcon] = useState('kanban');
   const [selectedColor, setSelectedColor] = useState('#3ecf8e');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
@@ -159,7 +162,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onCl
                 id="modal-board-name"
                 type="text"
                 className="input-field board-title-input"
-                placeholder="e.g. Q3 Sprint Backlog & Releases"
+                placeholder={isDeployed() ? "Board title" : "e.g. Q3 Sprint Backlog & Releases"}
                 value={boardName}
                 onChange={(e) => setBoardName(e.target.value)}
                 required
@@ -173,7 +176,7 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onCl
               id="modal-board-desc"
               type="text"
               className="input-field"
-              placeholder="e.g. High-velocity feature delivery and sprint cycles"
+              placeholder={isDeployed() ? "Description of this board" : "e.g. High-velocity feature delivery and sprint cycles"}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />

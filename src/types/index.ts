@@ -66,7 +66,7 @@ export interface BoardSummary {
   description: string;
   item_count: number;
   updated_at: string;
-  member_avatars: string[];
+  member_avatars?: string[];
   columns?: import('../lib/mondaydb/types').BoardColumn[];
 }
 
@@ -208,7 +208,8 @@ export interface BoardItem {
   severity?: 'critical' | 'major' | 'minor' | 'cosmetic';
   due_date: string;
   sla_due_at?: string;
-  assignee: {
+  workspace_id?: string;
+  assignee?: {
     id: string;
     name: string;
     avatar: string;

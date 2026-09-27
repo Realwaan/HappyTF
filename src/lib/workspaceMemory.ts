@@ -35,8 +35,8 @@ export function compileWorkspaceMemory(
   theme: 'dark' | 'light'
 ): WorkspaceMemorySystem {
   const wsName = workspace?.name || 'HappyTF Workspace';
-  const userName = user?.full_name || 'Alex Rivera';
-  const userRole = user?.job_role || 'Lead Product Architect';
+  const userName = user?.full_name || 'Team Member';
+  const userRole = user?.job_role || 'Contributor';
 
   // 1. /profile.md
   const profile: MemoryDocument = {
@@ -47,10 +47,10 @@ export function compileWorkspaceMemory(
     content: [
       `- [stated] Name: ${userName}`,
       `- [stated] Role: ${userRole}`,
-      `- [stated] Email: ${user?.email || 'alex.rivera@happytf.dev'}`,
+      `- [stated] Email: ${user?.email || 'N/A'}`,
       `- [stated] Primary Workspace: ${wsName}`,
-      `- [stated] Member of workspace since: ${workspace?.created_at ? new Date(workspace.created_at).toLocaleDateString() : 'August 2026'}`,
-      `- [stated] Active cycle: Sprint 24 (High-velocity product delivery)`,
+      `- [stated] Member of workspace since: ${workspace?.created_at ? new Date(workspace.created_at).toLocaleDateString() : 'Recent'}`,
+      `- [stated] Active cycle: Live Workflow (Real-time task delivery)`,
     ],
   };
 

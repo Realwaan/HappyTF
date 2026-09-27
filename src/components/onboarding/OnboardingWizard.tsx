@@ -20,13 +20,14 @@ import {
   UserCheck
 } from 'lucide-react';
 import { AVAILABLE_ICONS, IconBadge } from '../common/IconBadge';
+import { isDeployed } from '@/lib/environment';
 
 export const OnboardingWizard: React.FC = () => {
   const { isOnboardingOpen, currentUser, completeOnboarding } = useApp();
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // Step 1: Profile
-  const [fullName, setFullName] = useState(currentUser?.full_name || 'Alex Mercer');
+  const [fullName, setFullName] = useState(currentUser?.full_name || '');
   const [jobRole, setJobRole] = useState(currentUser?.job_role || 'Engineering Lead');
   const [avatarUrl, setAvatarUrl] = useState(
     currentUser?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
@@ -36,14 +37,13 @@ export const OnboardingWizard: React.FC = () => {
   const [purpose, setPurpose] = useState<string>('sprints');
 
   // Step 3: Workspace Setup & Invites
-  const [workspaceName, setWorkspaceName] = useState('Acme Product Lab');
+  const [workspaceName, setWorkspaceName] = useState(isDeployed() ? '' : 'Acme Product Lab');
   const [iconEmoji, setIconEmoji] = useState('zap');
   const [brandColor, setBrandColor] = useState('#3ecf8e');
   const [inviteInput, setInviteInput] = useState('');
-  const [invitedEmails, setInvitedEmails] = useState<string[]>([
-    'sarah.jenkins@happytf.dev',
-    'marcus.vance@happytf.dev'
-  ]);
+  const [invitedEmails, setInvitedEmails] = useState<string[]>(
+    isDeployed() ? [] : ['sarah.jenkins@happytf.dev', 'marcus.vance@happytf.dev']
+  );
 
   if (!isOnboardingOpen) return null;
 
@@ -174,7 +174,7 @@ export const OnboardingWizard: React.FC = () => {
                   className="input-field with-icon"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Alex Rivera"
+                  placeholder="Your full name"
                 />
               </div>
             </div>
@@ -273,7 +273,7 @@ export const OnboardingWizard: React.FC = () => {
                   className="input-field"
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
-                  placeholder="e.g. Acme Product Lab"
+                  placeholder={isDeployed() ? "Workspace name" : "e.g. Acme Product Lab"}
                 />
               </div>
             </div>

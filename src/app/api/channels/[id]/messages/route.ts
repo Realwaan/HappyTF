@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getServerMessages, addServerMessage } from '@/lib/serverChannelsStore';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { isDeployed } from '@/lib/environment';
 import { ChannelMessage } from '@/types';
 import { getSafeAvatar } from '@/lib/avatarHelper';
 import { checkRateLimit } from '@/lib/redis';
@@ -115,14 +116,17 @@ export async function POST(
     }
 
     const safeAvatar = getSafeAvatar(user_avatar, user_name || 'Teammate');
-    const wsId = workspace_id || 'ws-demo-01';
+    const isProd = isDeployed();
+    const wsId = workspace_id || (isProd ? '' : 'ws-demo-01');
+    const defaultAuthor = isProd ? 'Team Member' : 'Alex Rivera';
+    const defaultUserId = isProd ? 'usr-anon' : 'usr-demo-001';
 
     const newMessage: ChannelMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       channel_id: channelId,
       workspace_id: wsId,
-      user_id: user_id || 'usr-demo-001',
-      user_name: user_name || 'Alex Rivera',
+      user_id: user_id || defaultUserId,
+      user_name: user_name || defaultAuthor,
       user_avatar: safeAvatar,
       content: content.trim(),
       parent_id: parent_id || null,
@@ -142,7 +146,7 @@ export async function POST(
             channel_id: channelId,
             workspace_id: wsId,
             user_id: user_id || null,
-            user_name: user_name || 'Alex Rivera',
+            user_name: user_name || defaultAuthor,
             user_avatar: safeAvatar,
             content: content.trim(),
             parent_id: parent_id || null,

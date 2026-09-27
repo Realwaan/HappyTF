@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { createClient, isSupabaseConfigured } from './client';
+import { isDeployed } from '@/lib/environment';
 import { BoardItem, UserProfile } from '@/types';
 import { getSafeAvatar } from '@/lib/avatarHelper';
 
@@ -150,13 +151,14 @@ export function useRealtimeTickets({
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
   // Construct current user's presence payload
+  const isProd = isDeployed();
   const currentPresence: PresenceUser = {
-    id: currentUser?.id || 'usr-demo-001',
-    name: currentUser?.full_name || 'Alex Rivera',
-    email: currentUser?.email || 'alex.rivera@happytf.dev',
+    id: currentUser?.id || (isProd ? 'usr-guest' : 'usr-demo-001'),
+    name: currentUser?.full_name || (isProd ? 'Team Member' : 'Alex Rivera'),
+    email: currentUser?.email || (isProd ? 'member@happytf.dev' : 'alex.rivera@happytf.dev'),
     avatar: currentUser?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    role: currentUser?.job_role || 'Lead Product Architect',
-    color: getUserColor(currentUser?.id || 'usr-demo-001'),
+    role: currentUser?.job_role || (isProd ? 'Team Member' : 'Lead Product Architect'),
+    color: getUserColor(currentUser?.id || (isProd ? 'usr-guest' : 'usr-demo-001')),
     status: 'active',
     activeBoardId: boardId,
     activeItemId: activeItemId || null,

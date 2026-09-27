@@ -37,6 +37,7 @@ import confetti from 'canvas-confetti';
 import { createClient, isSupabaseConfigured } from '../lib/supabase/client';
 import { getSafeAvatar, DEFAULT_AVATAR } from '../lib/avatarHelper';
 import { encryptAtRest, decryptAtRest } from '../lib/clientCrypto';
+import { isDeployed } from '../lib/environment';
 
 interface AppContextType {
   currentUser: UserProfile | null;
@@ -158,21 +159,21 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(DEMO_USER);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>(INITIAL_WORKSPACES);
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(INITIAL_WORKSPACES[0]);
-  const [membersMap, setMembersMap] = useState<Record<string, WorkspaceMember[]>>(INITIAL_MEMBERS);
-  const [boardsMap, setBoardsMap] = useState<Record<string, BoardSummary[]>>(INITIAL_BOARDS);
-  const [foldersMap, setFoldersMap] = useState<Record<string, Folder[]>>(INITIAL_FOLDERS);
-  const [myWorkItems, setMyWorkItems] = useState<MyWorkItem[]>(INITIAL_MY_WORK_ITEMS);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(isDeployed() ? null : DEMO_USER);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>(isDeployed() ? [] : INITIAL_WORKSPACES);
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(isDeployed() ? null : INITIAL_WORKSPACES[0]);
+  const [membersMap, setMembersMap] = useState<Record<string, WorkspaceMember[]>>(isDeployed() ? {} : INITIAL_MEMBERS);
+  const [boardsMap, setBoardsMap] = useState<Record<string, BoardSummary[]>>(isDeployed() ? {} : INITIAL_BOARDS);
+  const [foldersMap, setFoldersMap] = useState<Record<string, Folder[]>>(isDeployed() ? {} : INITIAL_FOLDERS);
+  const [myWorkItems, setMyWorkItems] = useState<MyWorkItem[]>(isDeployed() ? [] : INITIAL_MY_WORK_ITEMS);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(isDeployed() ? [] : INITIAL_NOTIFICATIONS);
 
   // Board engine state with persistent local storage
   const [activeView, setActiveView] = useState<'home' | 'board'>('home');
   const [boardViewMode, setBoardViewMode] = useState<ViewMode>('table');
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
-  const [groupsMap, setGroupsMap] = useState<Record<string, BoardGroup[]>>(INITIAL_BOARD_GROUPS);
-  const [itemsMap, setItemsMap] = useState<Record<string, BoardItem[]>>(INITIAL_BOARD_ITEMS);
+  const [groupsMap, setGroupsMap] = useState<Record<string, BoardGroup[]>>(isDeployed() ? {} : INITIAL_BOARD_GROUPS);
+  const [itemsMap, setItemsMap] = useState<Record<string, BoardItem[]>>(isDeployed() ? {} : INITIAL_BOARD_ITEMS);
   const [selectedItem, setSelectedItem] = useState<BoardItem | null>(null);
 
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -199,7 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const closeTeamChat = useCallback(() => {
     setIsTeamChatOpen(false);
   }, []);
-  const [gitHubCommits, setGitHubCommits] = useState<GitHubCommit[]>(INITIAL_GITHUB_COMMITS);
+  const [gitHubCommits, setGitHubCommits] = useState<GitHubCommit[]>(isDeployed() ? [] : INITIAL_GITHUB_COMMITS);
   const [activeSettingsTab, setActiveSettingsTab] = useState<'general' | 'members' | 'roles' | 'danger'>('general');
 
   const ticketBroadcasterRef = useRef<((ticket: BoardItem, notif?: any) => void) | null>(null);
@@ -233,7 +234,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     activeBoardIdRef.current = activeBoardId;
   }, [activeBoardId]);
 
-  const itemsMapRef = useRef<Record<string, BoardItem[]>>(INITIAL_BOARD_ITEMS);
+  const itemsMapRef = useRef<Record<string, BoardItem[]>>(isDeployed() ? {} : INITIAL_BOARD_ITEMS);
   useEffect(() => {
     itemsMapRef.current = itemsMap;
   }, [itemsMap]);
@@ -260,11 +261,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   assignee: it.assignee ? {
                     ...it.assignee,
                     avatar: getSafeAvatar(it.assignee.avatar, it.assignee.name),
-                  } : {
-                    id: 'usr-demo-001',
-                    name: 'Alex Rivera',
-                    avatar: DEFAULT_AVATAR,
-                  },
+                  } : undefined,
                 }));
               }
             }
@@ -399,11 +396,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 assignee: st.assignee ? {
                   ...st.assignee,
                   avatar: getSafeAvatar(st.assignee.avatar, st.assignee.name),
-                } : {
-                  id: 'usr-demo-001',
-                  name: 'Alex Rivera',
-                  avatar: DEFAULT_AVATAR,
-                },
+                } : undefined,
               };
               if (!existingMap.has(safeTicket.id)) {
                 existingMap.set(safeTicket.id, safeTicket);
@@ -445,6 +438,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       const supabase = createClient();
+
+      const syncUserWorkspaces = async (userId: string) => {
+        try {
+          const { data: memberWorkspaces, error: wsError } = await supabase
+            .from('workspace_members')
+            .select('workspace_id, role, workspaces(*)')
+            .eq('user_id', userId);
+
+          let realWorkspaces: Workspace[] = [];
+          if (!wsError && memberWorkspaces && memberWorkspaces.length > 0) {
+            realWorkspaces = memberWorkspaces
+              .map((mw: any) => mw.workspaces)
+              .filter(Boolean);
+          } else {
+            const { data: ownedWorkspaces } = await supabase
+              .from('workspaces')
+              .select('*')
+              .eq('created_by', userId);
+            if (ownedWorkspaces && ownedWorkspaces.length > 0) {
+              realWorkspaces = ownedWorkspaces;
+            }
+          }
+
+          if (realWorkspaces.length > 0) {
+            setWorkspaces(realWorkspaces);
+            setCurrentWorkspace((prev) => {
+              if (prev && realWorkspaces.some((w) => w.id === prev.id)) return prev;
+              return realWorkspaces[0];
+            });
+
+            // Fetch boards for primary workspace
+            const activeWsId = realWorkspaces[0].id;
+            const { data: dbBoards } = await supabase
+              .from('boards')
+              .select('*')
+              .eq('workspace_id', activeWsId);
+
+            if (dbBoards && dbBoards.length > 0) {
+              const boardSummaries: BoardSummary[] = dbBoards.map((b: any) => ({
+                id: b.id,
+                workspace_id: b.workspace_id,
+                name: b.name,
+                icon_emoji: b.icon_emoji || '📋',
+                description: b.description || '',
+                item_count: 0,
+                updated_at: b.updated_at || b.created_at,
+              }));
+              setBoardsMap((prev) => ({ ...prev, [activeWsId]: boardSummaries }));
+            }
+          }
+        } catch (err) {
+          console.warn('[syncUserWorkspaces error]', err);
+        }
+      };
+
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
           const u = session.user;
@@ -457,6 +505,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             job_role: meta.job_role || 'Product Specialist',
             created_at: u.created_at || new Date().toISOString(),
           });
+          syncUserWorkspaces(u.id);
+        } else if (isDeployed()) {
+          setCurrentUser(null);
+          setWorkspaces([]);
+          setCurrentWorkspace(null);
         }
       });
 
@@ -472,6 +525,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             job_role: meta.job_role || 'Product Specialist',
             created_at: u.created_at || new Date().toISOString(),
           });
+          syncUserWorkspaces(u.id);
+        } else if (isDeployed()) {
+          setCurrentUser(null);
+          setWorkspaces([]);
+          setCurrentWorkspace(null);
         }
       });
 
@@ -601,11 +659,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       assignee: ticket.assignee ? {
         ...ticket.assignee,
         avatar: getSafeAvatar(ticket.assignee.avatar, ticket.assignee.name),
-      } : {
-        id: 'usr-demo-001',
-        name: 'Alex Rivera',
-        avatar: DEFAULT_AVATAR,
-      },
+      } : undefined,
     };
     setItemsMap((prev) => {
       const list = prev[safeTicket.board_id] || [];
@@ -755,20 +809,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!activeBoardId || !title.trim()) return;
 
     const ticketNum = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
-    const assigneeInput = options?.assignee || {
-      id: currentUser?.id || 'usr-demo-001',
-      name: currentUser?.full_name || 'Alex Rivera',
-      avatar: currentUser?.avatar_url || DEMO_USER.avatar_url!,
-    };
+    const assigneeInput = options?.assignee || (currentUser ? {
+      id: currentUser.id,
+      name: currentUser.full_name,
+      avatar: currentUser.avatar_url || DEFAULT_AVATAR,
+    } : {
+      id: 'unassigned',
+      name: 'Unassigned',
+      avatar: DEFAULT_AVATAR,
+    });
     const assignee = {
-      id: assigneeInput.id || 'usr-demo-001',
-      name: assigneeInput.name || 'Alex Rivera',
+      id: assigneeInput.id || 'unassigned',
+      name: assigneeInput.name || 'Unassigned',
       avatar: getSafeAvatar(assigneeInput.avatar, assigneeInput.name),
     };
 
     const statusPriority = options?.priority || 'medium';
     const status = options?.status || 'Working on it';
     const statusColor = options?.status_color || (status === 'Done' ? '#10b981' : status === 'In Review' ? '#8b5cf6' : status === 'Stuck' ? '#ef4444' : '#f59e0b');
+
+    const authorName = currentUser?.full_name || 'Team Member';
 
     const newItem: BoardItem = {
       id: `item-${Date.now()}`,
@@ -791,7 +851,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       activities: [
         {
           id: `act-${Date.now()}`,
-          author_name: currentUser?.full_name || 'Alex Rivera',
+          author_name: authorName,
           action: `Created ticket ${ticketNum}`,
           timestamp: 'Just now',
         },
@@ -805,11 +865,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     // 1. Broadcast new task to other sessions live
-    const authorName = currentUser?.full_name || 'Alex Rivera';
     const createNotif = {
-      userId: currentUser?.id || 'usr-demo-001',
+      userId: currentUser?.id || 'usr-creator',
       userName: authorName,
-      userAvatar: currentUser?.avatar_url || DEMO_USER.avatar_url,
+      userAvatar: currentUser?.avatar_url || DEFAULT_AVATAR,
       userColor: '#10b981',
       action: 'create',
       message: `${authorName} created task: "${newItem.title}"`,
@@ -900,13 +959,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }),
     }));
 
-    const actorName = currentUser?.full_name || 'Alex Rivera';
+    const actorName = currentUser?.full_name || 'Team Member';
     let notifPayload = undefined;
     const ticketLabel = existing.ticket_number || existing.title;
+    const currentUserId = currentUser?.id || 'usr-updater';
 
     if (updates.status && updates.status !== existing.status) {
       notifPayload = {
-        userId: currentUser?.id || 'usr-demo-001',
+        userId: currentUserId,
         userName: actorName,
         userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
         userColor: updates.status === 'Done' ? '#10b981' : '#3b82f6',
@@ -915,7 +975,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     } else if (updates.assignee) {
       notifPayload = {
-        userId: currentUser?.id || 'usr-demo-001',
+        userId: currentUserId,
         userName: actorName,
         userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
         userColor: '#8b5cf6',
@@ -927,7 +987,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newDone = updates.subtasks.filter((s) => s.completed).length;
       if (newDone !== oldDone) {
         notifPayload = {
-          userId: currentUser?.id || 'usr-demo-001',
+          userId: currentUserId,
           userName: actorName,
           userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
           userColor: '#10b981',
@@ -936,7 +996,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       } else if (updates.subtasks.length !== (existing.subtasks || []).length) {
         notifPayload = {
-          userId: currentUser?.id || 'usr-demo-001',
+          userId: currentUserId,
           userName: actorName,
           userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
           userColor: '#6366f1',
@@ -946,7 +1006,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } else if (updates.priority && updates.priority !== existing.priority) {
       notifPayload = {
-        userId: currentUser?.id || 'usr-demo-001',
+        userId: currentUserId,
         userName: actorName,
         userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
         userColor: '#f59e0b',
@@ -955,7 +1015,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     } else if (updates.severity && updates.severity !== existing.severity) {
       notifPayload = {
-        userId: currentUser?.id || 'usr-demo-001',
+        userId: currentUser?.id || (isDeployed() ? 'usr-anon' : 'usr-demo-001'),
         userName: actorName,
         userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
         userColor: '#ef4444',
@@ -964,7 +1024,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     } else if (updates.tags && JSON.stringify(updates.tags) !== JSON.stringify(existing.tags)) {
       notifPayload = {
-        userId: currentUser?.id || 'usr-demo-001',
+        userId: currentUser?.id || (isDeployed() ? 'usr-anon' : 'usr-demo-001'),
         userName: actorName,
         userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
         userColor: '#06b6d4',
@@ -973,7 +1033,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     } else if (updates.due_date && updates.due_date !== existing.due_date) {
       notifPayload = {
-        userId: currentUser?.id || 'usr-demo-001',
+        userId: currentUser?.id || (isDeployed() ? 'usr-anon' : 'usr-demo-001'),
         userName: actorName,
         userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
         userColor: '#3b82f6',
@@ -982,7 +1042,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     } else if (updates.sub_items && Array.isArray(updates.sub_items)) {
       notifPayload = {
-        userId: currentUser?.id || 'usr-demo-001',
+        userId: currentUser?.id || (isDeployed() ? 'usr-anon' : 'usr-demo-001'),
         userName: actorName,
         userAvatar: getSafeAvatar(currentUser?.avatar_url, actorName),
         userColor: '#10b981',
@@ -1063,7 +1123,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    const userName = currentUser?.full_name || 'Alex Rivera';
+    const userName = currentUser?.full_name || 'Team Member';
     const userAvatar = getSafeAvatar(currentUser?.avatar_url, userName);
     const nextVersion = currentVersion + 1;
     const nextUpdatedAt = new Date().toISOString();
@@ -1082,7 +1142,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const updated: BoardItem = {
             ...item,
             assignee: {
-              id: currentUser?.id || 'usr-demo-001',
+              id: currentUser?.id || 'usr-claimer',
               name: userName,
               avatar: userAvatar,
             },
@@ -1104,7 +1164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     const claimBroadcastNotif = {
-      userId: currentUser?.id || 'usr-demo-001',
+      userId: currentUser?.id || (isDeployed() ? 'usr-anon' : 'usr-demo-001'),
       userName,
       userAvatar,
       userColor: '#10b981',
@@ -1115,7 +1175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const claimedItemPayload: BoardItem = {
       ...existing,
       assignee: {
-        id: currentUser?.id || 'usr-demo-001',
+        id: currentUser?.id || (isDeployed() ? 'usr-anon' : 'usr-demo-001'),
         name: userName,
         avatar: userAvatar,
       },
@@ -1179,7 +1239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...m,
               status: 'Working on it',
               status_color: '#f59e0b',
-              assignee_id: currentUser?.id || 'usr-demo-001',
+              assignee_id: currentUser?.id || (isDeployed() ? 'usr-anon' : 'usr-demo-001'),
             }
           : m
       )
@@ -1242,7 +1302,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const currentList = itemsMap[activeBoardId] || [];
     const existing = currentList.find((i) => i.id === itemId);
     const itemTitle = existing?.title || 'task';
-    const actorName = currentUser?.full_name || 'Alex Rivera';
+    const actorName = currentUser?.full_name || 'Team Member';
 
     setItemsMap((prev) => ({
       ...prev,
@@ -1255,9 +1315,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 1. Broadcast delete to other sessions live
     const deleteNotif = {
-      userId: currentUser?.id || 'usr-demo-001',
+      userId: currentUser?.id || 'usr-deleter',
       userName: actorName,
-      userAvatar: currentUser?.avatar_url || DEMO_USER.avatar_url,
+      userAvatar: currentUser?.avatar_url || DEFAULT_AVATAR,
       userColor: '#ef4444',
       action: 'delete',
       message: `${actorName} deleted ${existing?.ticket_number || itemTitle}`,
@@ -1273,9 +1333,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addItemComment = (itemId: string, content: string) => {
     if (!activeBoardId || !content.trim()) return;
 
-    const authorName = currentUser?.full_name || 'Alex Rivera';
-    const authorAvatar = currentUser?.avatar_url || DEMO_USER.avatar_url!;
-    const authorId = currentUser?.id || 'usr-demo-001';
+    const authorName = currentUser?.full_name || 'Team Member';
+    const authorAvatar = currentUser?.avatar_url || DEFAULT_AVATAR;
+    const authorId = currentUser?.id || 'usr-author';
 
     const newComment: ItemComment = {
       id: `comm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -1334,7 +1394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       : (activeBoardId ? (itemsMap[activeBoardId] || []).find((i) => i.id === itemId) : null);
     if (!currentItem) return;
 
-    const userName = currentUser?.full_name || 'Alex Rivera';
+    const userName = currentUser?.full_name || 'Team Member';
 
     const updatedComments = (currentItem.comments || []).map((comm) => {
       if (comm.id === commentId) {
@@ -1408,9 +1468,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const login = async (email: string) => {
+    const namePart = email ? email.split('@')[0] : 'User';
+    const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
     setCurrentUser({
-      ...DEMO_USER,
-      email: email || DEMO_USER.email,
+      id: `usr-${Date.now()}`,
+      email: email || 'user@happytf.dev',
+      full_name: formattedName,
+      job_role: 'Team Member',
+      created_at: new Date().toISOString(),
+      avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formattedName)}&backgroundColor=6366f1`,
     });
   };
 
@@ -1449,9 +1515,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Demo/offline fallback
+    if (isDeployed()) {
+      const providerLabel = provider === 'google' ? 'Google User' : 'GitHub User';
+      setCurrentUser({
+        id: `usr-${Date.now()}`,
+        email: `user@${provider}.com`,
+        full_name: providerLabel,
+        job_role: 'Team Member',
+        created_at: new Date().toISOString(),
+        avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(providerLabel)}&backgroundColor=6366f1`,
+      });
+      return;
+    }
+
+    // No Supabase and not in deployed mode — create a minimal local session
+    const providerLabel = provider === 'google' ? 'Google User' : 'GitHub User';
     setCurrentUser({
-      ...DEMO_USER,
-      full_name: provider === 'google' ? 'Alex Rivera (Google)' : 'Alex Rivera (GitHub)',
+      id: `usr-${Date.now()}`,
+      email: `user@${provider}.com`,
+      full_name: providerLabel,
+      job_role: 'Team Member',
+      created_at: new Date().toISOString(),
+      avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(providerLabel)}&backgroundColor=6366f1`,
     });
   };
 
@@ -1479,13 +1564,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const createWorkspace = (name: string, emoji: string, color: string): Workspace => {
+    const creatorId = currentUser?.id || `usr-${Date.now()}`;
     const newWs: Workspace = {
       id: `ws-${Date.now()}`,
       name: name.trim() || 'Untitled Workspace',
       slug: name.toLowerCase().replace(/[^a-z0-9]/g, '-') + `-${Math.floor(Math.random() * 1000)}`,
       icon_emoji: emoji || '📁',
       brand_color: color || '#6366f1',
-      created_by: currentUser?.id || 'usr-demo-001',
+      created_by: creatorId,
       created_at: new Date().toISOString(),
       member_count: 1,
     };
@@ -1496,10 +1582,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newMember: WorkspaceMember = {
       id: `wm-${Date.now()}`,
       workspace_id: newWs.id,
-      user_id: currentUser?.id || 'usr-demo-001',
+      user_id: creatorId,
       role: 'owner',
       joined_at: new Date().toISOString(),
-      profile: currentUser || DEMO_USER,
+      profile: currentUser || {
+        id: creatorId,
+        email: 'owner@workspace.local',
+        full_name: 'Workspace Owner',
+        job_role: 'Owner',
+        created_at: new Date().toISOString(),
+      },
     };
 
     setMembersMap((prev) => ({
@@ -1513,15 +1605,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: 'Getting Started & Launchpad',
       icon_emoji: 'rocket',
       description: `Welcome to ${newWs.name}! Track high-priority items and projects here.`,
-      item_count: 3,
+      item_count: 0,
       updated_at: 'Just now',
-      member_avatars: [currentUser?.avatar_url || DEMO_USER.avatar_url!],
+      member_avatars: currentUser?.avatar_url ? [currentUser.avatar_url] : [],
     };
 
     setBoardsMap((prev) => ({
       ...prev,
       [newWs.id]: [welcomeBoard],
     }));
+
+    // If Supabase is configured and user is authenticated, persist to real PostgreSQL tables
+    if (isSupabaseConfigured() && currentUser) {
+      try {
+        const supabase = createClient();
+        supabase.from('workspaces').insert([{
+          id: newWs.id,
+          name: newWs.name,
+          slug: newWs.slug,
+          icon_emoji: newWs.icon_emoji,
+          brand_color: newWs.brand_color,
+          created_by: currentUser.id,
+        }]).then();
+        supabase.from('workspace_members').insert([{
+          workspace_id: newWs.id,
+          user_id: currentUser.id,
+          role: 'owner',
+        }]).then();
+        supabase.from('boards').insert([{
+          id: welcomeBoard.id,
+          workspace_id: newWs.id,
+          name: welcomeBoard.name,
+          icon_emoji: welcomeBoard.icon_emoji,
+          description: welcomeBoard.description,
+        }]).then();
+      } catch (e) {
+        console.warn('[Supabase Workspace Persist Error]', e);
+      }
+    }
 
     return newWs;
   };
@@ -1744,11 +1865,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           { id: `grp-${Date.now()}-done`, board_id: newBoardId, name: 'Done', color: '#10b981' },
         ];
 
-    // Prepare starter items from template
-    const starterItems: BoardItem[] = (matchedTemplate?.starterItems || []).map((item, idx) => {
+    // Prepare starter items from template (empty if deployed and no template)
+    const rawStarterItems = isDeployed() && !templateId ? [] : (matchedTemplate?.starterItems || []);
+    const starterItems: BoardItem[] = rawStarterItems.map((item, idx) => {
       const ticketNum = `TK-${Math.floor(2000 + idx * 100 + Math.random() * 50)}`;
       const targetGroup = groups[Math.min(idx, groups.length - 1)];
       const statusColor = item.status === 'Done' ? '#10b981' : item.status === 'In Review' ? '#8b5cf6' : item.status === 'Stuck' ? '#ef4444' : '#f59e0b';
+      const authorName = currentUser?.full_name || 'Team Member';
       return {
         id: `item-${Date.now()}-${idx}`,
         ticket_number: ticketNum,
@@ -1761,10 +1884,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         severity: 'minor',
         due_date: item.due_date,
         sla_due_at: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
-        assignee: {
-          id: currentUser?.id || 'usr-demo-001',
-          name: currentUser?.full_name || 'Alex Rivera',
-          avatar: currentUser?.avatar_url || DEMO_USER.avatar_url!,
+        assignee: currentUser ? {
+          id: currentUser.id,
+          name: currentUser.full_name,
+          avatar: currentUser.avatar_url || DEFAULT_AVATAR,
+        } : {
+          id: 'unassigned',
+          name: 'Unassigned',
+          avatar: DEFAULT_AVATAR,
         },
         tags: item.tags || ['Ticket'],
         subtasks: [],
@@ -1774,7 +1901,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activities: [
           {
             id: `act-${Date.now()}-${idx}`,
-            author_name: currentUser?.full_name || 'Alex Rivera',
+            author_name: authorName,
             action: `Generated from template "${matchedTemplate?.name}"`,
             timestamp: 'Just now',
           },
@@ -1794,13 +1921,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: description || matchedTemplate?.description || 'New project board',
       item_count: starterItems.length,
       updated_at: 'Just now',
-      member_avatars: [currentUser?.avatar_url || DEMO_USER.avatar_url!],
+      member_avatars: currentUser?.avatar_url ? [currentUser.avatar_url] : [],
     };
 
     setBoardsMap((prev) => ({
       ...prev,
       [wsId]: [newBoard, ...(prev[wsId] || [])],
     }));
+
+    if (isSupabaseConfigured() && currentUser) {
+      try {
+        const supabase = createClient();
+        supabase.from('boards').insert([{
+          id: newBoard.id,
+          workspace_id: wsId,
+          name: newBoard.name,
+          icon_emoji: newBoard.icon_emoji,
+          description: newBoard.description,
+        }]).then();
+      } catch (e) {
+        console.warn('[Supabase Board Persist Error]', e);
+      }
+    }
 
     setGroupsMap((prev) => ({
       ...prev,

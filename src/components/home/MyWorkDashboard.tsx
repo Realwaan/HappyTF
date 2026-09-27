@@ -74,11 +74,11 @@ export const MyWorkDashboard: React.FC = () => {
         <div className="hero-text-col">
           <div className="hero-badge">
             <Layers size={13} className="text-primary" />
-            <span>Sprint 24 · Active Cycle</span>
+            <span>{currentWorkspace ? `${currentWorkspace.name} · Live Workspace` : 'Workspace Overview'}</span>
           </div>
           <h1>Workspace Overview</h1>
           <p className="hero-subtext">
-            <strong>{currentWorkspace?.name}</strong> · 8 days remaining in sprint · {totalAssigned} assigned deliverables across {activeBoardsCount} active boards.
+            <strong>{currentWorkspace?.name || 'HappyTF Workspace'}</strong> · {totalAssigned} assigned deliverables across {activeBoardsCount} active boards.
           </p>
         </div>
 
@@ -362,7 +362,7 @@ export const MyWorkDashboard: React.FC = () => {
                     <div className="board-card-footer">
                       <span className="item-count-badge">{board.item_count} items</span>
                       <div className="avatar-stack">
-                        {board.member_avatars.map((av, idx) => (
+                        {board.member_avatars?.map((av, idx) => (
                           <img
                             key={idx}
                             src={getSafeAvatar(av)}

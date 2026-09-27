@@ -36,11 +36,12 @@ export const DashboardWidgetsView: React.FC<DashboardWidgetsViewProps> = ({ boar
   // Assignee distribution
   const assigneeStats: Record<string, { name: string; avatar: string; count: number; doneCount: number }> = {};
   items.forEach((item) => {
-    const id = item.assignee.id;
+    if (!item.assignee) return;
+    const id = item.assignee.id || 'unassigned';
     if (!assigneeStats[id]) {
       assigneeStats[id] = {
-        name: item.assignee.name,
-        avatar: item.assignee.avatar,
+        name: item.assignee.name || 'Unassigned',
+        avatar: item.assignee.avatar || '',
         count: 0,
         doneCount: 0,
       };

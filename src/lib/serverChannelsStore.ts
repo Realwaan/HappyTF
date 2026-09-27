@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { TeamChannel, ChannelMessage } from '@/types';
 import { DEFAULT_AVATAR } from './avatarHelper';
+import { isDeployed } from '@/lib/environment';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const CHANNELS_FILE = path.join(DATA_DIR, 'channels.json');
@@ -128,7 +129,18 @@ export function loadChannels(): TeamChannel[] {
   } catch (err) {
     console.warn('[serverChannelsStore] Failed to read channels file', err);
   }
-  const fallback = inMemoryChannels || [...INITIAL_CHANNELS];
+  const deployedChannels: TeamChannel[] = [
+    {
+      id: 'chan-general',
+      workspace_id: 'default',
+      name: 'general',
+      topic: 'Workspace discussions and updates',
+      is_private: false,
+      member_count: 1,
+      created_at: new Date().toISOString(),
+    },
+  ];
+  const fallback = inMemoryChannels || (isDeployed() ? deployedChannels : [...INITIAL_CHANNELS]);
   inMemoryChannels = fallback;
   saveChannels(fallback);
   return fallback;
@@ -165,7 +177,7 @@ export function loadMessages(): ChannelMessage[] {
   } catch (err) {
     console.warn('[serverChannelsStore] Failed to read messages file', err);
   }
-  const fallback = inMemoryMessages || [...INITIAL_MESSAGES];
+  const fallback = inMemoryMessages || (isDeployed() ? [] : [...INITIAL_MESSAGES]);
   inMemoryMessages = fallback;
   saveMessages(fallback);
   return fallback;

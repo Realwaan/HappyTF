@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { cacheDelete, checkRateLimit } from '@/lib/redis';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { isDeployed } from '@/lib/environment';
 import { addServerMessage } from '@/lib/serverChannelsStore';
 import { updateServerBoardItem, deleteServerBoardItem } from '@/lib/serverTicketsStore';
 
@@ -90,10 +91,11 @@ export async function PATCH(
           // If status changed, post internal channel notification to #eng-prod-alerts
           if (updates.status && updates.status !== existing.status) {
             try {
+              const wsFallback = isDeployed() ? '' : 'ws-demo-01';
               addServerMessage({
                 id: `msg-alert-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
                 channel_id: 'chan-eng-alerts',
-                workspace_id: existing.workspace_id || 'ws-demo-01',
+                workspace_id: existing.workspace_id || wsFallback,
                 user_id: 'usr-bot',
                 user_name: 'HappyTF Alerts Bot',
                 user_avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
@@ -114,10 +116,11 @@ export async function PATCH(
     } else if (updates.status && updatedServerItem) {
       // Local fallback alert if Supabase is bypassed
       try {
+        const wsFallback = isDeployed() ? '' : 'ws-demo-01';
         addServerMessage({
           id: `msg-alert-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           channel_id: 'chan-eng-alerts',
-          workspace_id: 'ws-demo-01',
+          workspace_id: updatedServerItem.workspace_id || wsFallback,
           user_id: 'usr-bot',
           user_name: 'HappyTF Alerts Bot',
           user_avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { BoardItem, ViewMode } from '../../types';
+import { isDeployed } from '@/lib/environment';
 import { 
   Table, 
   Kanban, 
@@ -126,9 +127,9 @@ export const BoardView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [newRowTitle, setNewRowTitle] = useState<Record<string, string>>({});
   const [activeInlineStatusId, setActiveInlineStatusId] = useState<string | null>(null);
-  const [expandedSubItems, setExpandedSubItems] = useState<Record<string, boolean>>({
-    'item-tk-1': true, // Open by default for demo
-  });
+  const [expandedSubItems, setExpandedSubItems] = useState<Record<string, boolean>>(
+    isDeployed() ? {} : { 'item-tk-1': true }
+  );
 
   const toggleSubItemExpand = (itemId: string) => {
     setExpandedSubItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
@@ -329,7 +330,7 @@ export const BoardView: React.FC = () => {
                   </div>
                 ))
               ) : (
-                activeBoard.member_avatars.map((av, i) => (
+                activeBoard.member_avatars?.map((av, i) => (
                   <img key={i} src={getSafeAvatar(av)} alt={`Collaborator ${i + 1}`} className="stacked-avatar" style={{ zIndex: 10 - i }} />
                 ))
               )}
@@ -567,7 +568,7 @@ export const BoardView: React.FC = () => {
                                     <img src={getSafeAvatar(item.assignee?.avatar, item.assignee?.name)} alt={item.assignee?.name || 'Assignee'} className="mini-avatar" />
                                     <span className="assignee-text truncate">{item.assignee?.name || 'Unassigned'}</span>
                                   </div>
-                                  {item.assignee.id !== currentUser?.id ? (
+                                  {item.assignee?.id !== currentUser?.id ? (
                                     <button
                                       type="button"
                                       className="btn-claim"
@@ -790,7 +791,7 @@ export const BoardView: React.FC = () => {
                                 <img src={getSafeAvatar(card.assignee?.avatar, card.assignee?.name)} alt={card.assignee?.name || 'Assignee'} className="mini-avatar" />
                                 <span>{card.assignee?.name ? card.assignee.name.split(' ')[0] : 'Unassigned'}</span>
                               </div>
-                              {card.assignee.id !== currentUser?.id && (
+                              {card.assignee?.id !== currentUser?.id && (
                                 <button
                                   type="button"
                                   className="btn-claim-subtle"

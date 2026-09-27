@@ -2,12 +2,17 @@ import fs from 'fs';
 import path from 'path';
 import { BoardItem } from '@/types';
 import { INITIAL_BOARD_ITEMS } from '@/lib/mock-data';
+import { isDeployed } from '@/lib/environment';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const TICKETS_FILE = path.join(DATA_DIR, 'board_items.json');
 
 let inMemoryStore: Record<string, BoardItem[]> | null = null;
 let lastMtimeMs = 0;
+
+function getInitialItems(): Record<string, BoardItem[]> {
+  return isDeployed() ? {} : INITIAL_BOARD_ITEMS;
+}
 
 function loadStore(): Record<string, BoardItem[]> {
   try {
@@ -23,7 +28,7 @@ function loadStore(): Record<string, BoardItem[]> {
       if (content) {
         const parsed = JSON.parse(content);
         if (parsed && typeof parsed === 'object') {
-          const store: Record<string, BoardItem[]> = { ...INITIAL_BOARD_ITEMS, ...parsed };
+          const store: Record<string, BoardItem[]> = { ...getInitialItems(), ...parsed };
           inMemoryStore = store;
           lastMtimeMs = stat.mtimeMs;
           return store;
@@ -33,7 +38,7 @@ function loadStore(): Record<string, BoardItem[]> {
   } catch (err) {
     console.warn('[serverTicketsStore] Failed to read tickets file', err);
   }
-  const store: Record<string, BoardItem[]> = inMemoryStore || { ...INITIAL_BOARD_ITEMS };
+  const store: Record<string, BoardItem[]> = inMemoryStore || { ...getInitialItems() };
   inMemoryStore = store;
   saveStore(store);
   return store;

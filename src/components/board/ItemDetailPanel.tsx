@@ -439,7 +439,7 @@ export const ItemDetailPanel: React.FC = () => {
                   </div>
                 )}
 
-                {selectedItem.assignee.id !== currentUser?.id ? (
+                {selectedItem.assignee?.id !== currentUser?.id ? (
                   <button
                     type="button"
                     className="btn-claim"

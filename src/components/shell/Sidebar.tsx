@@ -125,27 +125,33 @@ export const Sidebar: React.FC = () => {
               <span className="text-xs text-muted">Your Workspaces</span>
             </div>
             <div className="ws-list">
-              {workspaces.map((ws) => (
-                <button
-                  key={ws.id}
-                  id={`switch-ws-btn-${ws.id}`}
-                  type="button"
-                  className={`ws-item-btn ${ws.id === currentWorkspace?.id ? 'active' : ''}`}
-                  onClick={() => {
-                    switchWorkspace(ws.id);
-                    setIsWsDropdownOpen(false);
-                  }}
-                >
-                  <div className="ws-item-icon-wrap" style={{ color: ws.brand_color || 'var(--primary)' }}>
-                    <IconBadge nameOrEmoji={ws.icon_emoji} size={15} color={ws.brand_color} />
-                  </div>
-                  <div className="ws-item-info">
-                    <span className="ws-item-name">{ws.name}</span>
-                    <span className="text-xs text-muted">{ws.member_count || 1} members</span>
-                  </div>
-                  {ws.id === currentWorkspace?.id && <Check size={14} className="text-primary" />}
-                </button>
-              ))}
+              {workspaces.length === 0 ? (
+                <div style={{ padding: '12px 14px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                  No workspaces yet
+                </div>
+              ) : (
+                workspaces.map((ws) => (
+                  <button
+                    key={ws.id}
+                    id={`switch-ws-btn-${ws.id}`}
+                    type="button"
+                    className={`ws-item-btn ${ws.id === currentWorkspace?.id ? 'active' : ''}`}
+                    onClick={() => {
+                      switchWorkspace(ws.id);
+                      setIsWsDropdownOpen(false);
+                    }}
+                  >
+                    <div className="ws-item-icon-wrap" style={{ color: ws.brand_color || 'var(--primary)' }}>
+                      <IconBadge nameOrEmoji={ws.icon_emoji} size={15} color={ws.brand_color} />
+                    </div>
+                    <div className="ws-item-info">
+                      <span className="ws-item-name">{ws.name}</span>
+                      <span className="text-xs text-muted">{ws.member_count || 1} members</span>
+                    </div>
+                    {ws.id === currentWorkspace?.id && <Check size={14} className="text-primary" />}
+                  </button>
+                ))
+              )}
             </div>
 
             <div className="dropdown-actions">

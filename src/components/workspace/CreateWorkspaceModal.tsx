@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { X, Layers, Check, ArrowRight } from 'lucide-react';
 import { AVAILABLE_ICONS, IconBadge } from '../common/IconBadge';
+import { isDeployed } from '@/lib/environment';
 
 export const CreateWorkspaceModal: React.FC = () => {
   const { isCreateWorkspaceOpen, setCreateWorkspaceOpen, createWorkspace } = useApp();
@@ -57,7 +58,7 @@ export const CreateWorkspaceModal: React.FC = () => {
                 id="new-ws-name"
                 type="text"
                 className="input-field"
-                placeholder="e.g. Core Infrastructure & API"
+                placeholder={isDeployed() ? "Workspace name" : "e.g. Core Infrastructure & API"}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus

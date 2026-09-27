@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { toggleServerMessageReaction } from '@/lib/serverChannelsStore';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { isDeployed } from '@/lib/environment';
 
 export async function POST(
   request: NextRequest,
@@ -19,7 +20,7 @@ export async function POST(
       return NextResponse.json({ error: 'Emoji is required' }, { status: 400 });
     }
 
-    const userName = user_name || 'Alex Rivera';
+    const userName = user_name || (isDeployed() ? 'Team Member' : 'Alex Rivera');
 
     const updatedMessage = toggleServerMessageReaction(messageId, emoji, userName);
 

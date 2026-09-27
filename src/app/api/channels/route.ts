@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerChannels, addServerChannel } from '@/lib/serverChannelsStore';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { isDeployed } from '@/lib/environment';
 import { TeamChannel } from '@/types';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const workspaceId = searchParams.get('workspace_id') || 'ws-demo-01';
+  const workspaceId = searchParams.get('workspace_id') || (isDeployed() ? '' : 'ws-demo-01');
 
   try {
     if (isSupabaseConfigured()) {
@@ -43,7 +44,8 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanName = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-    const wsId = workspace_id || 'ws-demo-01';
+    const isProd = isDeployed();
+    const wsId = workspace_id || (isProd ? '' : 'ws-demo-01');
 
     const newChannel: TeamChannel = {
       id: `chan-${Date.now()}`,
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
       topic: topic || '',
       is_private: Boolean(is_private),
       member_count: 1,
-      created_by: created_by || 'usr-demo-001',
+      created_by: created_by || (isProd ? 'usr-anon' : 'usr-demo-001'),
       created_at: new Date().toISOString(),
     };
 

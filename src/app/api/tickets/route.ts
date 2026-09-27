@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { cacheGet, cacheSet, cacheDelete, checkRateLimit } from '@/lib/redis';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { isDeployed } from '@/lib/environment';
 import { addServerMessage } from '@/lib/serverChannelsStore';
 import { getServerBoardItems, addServerBoardItem } from '@/lib/serverTicketsStore';
 
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
       priority: priority || 'medium',
       severity: severity || 'minor',
       due_date: due_date || 'Next week',
-      assignee: assignee || { id: 'usr-demo-001', name: 'Alex Rivera', avatar: '' },
+      assignee: assignee || (isDeployed() ? undefined : { id: 'usr-demo-001', name: 'Alex Rivera', avatar: '' }),
       tags: tags || ['Ticket'],
       subtasks: subtasks || [],
       version: 1,
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
       activities: [
         {
           id: `act-${Date.now()}`,
-          author_name: assignee?.name || 'Alex Rivera',
+          author_name: assignee?.name || (isDeployed() ? 'Team Member' : 'Alex Rivera'),
           action: `Created ticket ${ticketNumber}`,
           timestamp: 'Just now',
         },
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {
     // Native team channel alert for high/urgent priority tickets (internal Slack-like flow)
     if (priority === 'urgent' || priority === 'high') {
       try {
+        const assignedName = newTicket.assignee?.name || 'Unassigned';
         addServerMessage({
           id: `msg-alert-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           channel_id: 'chan-eng-alerts',
@@ -166,7 +168,7 @@ export async function POST(request: NextRequest) {
           user_id: 'usr-bot',
           user_name: 'HappyTF Alerts Bot',
           user_avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-          content: `🚨 **[${(priority || 'HIGH').toUpperCase()} PRIORITY]** Ticket **#${ticketNumber}** created: *${newTicket.title}*\nStatus: **${newTicket.status}** • Assigned to: **${newTicket.assignee.name}**`,
+          content: `🚨 **[${(priority || 'HIGH').toUpperCase()} PRIORITY]** Ticket **#${ticketNumber}** created: *${newTicket.title}*\nStatus: **${newTicket.status}** • Assigned to: **${assignedName}**`,
           linked_ticket_number: ticketNumber,
           reactions: [{ emoji: '👀', count: 1, users: ['HappyTF Bot'] }],
           reply_count: 0,

@@ -55,7 +55,7 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
   // Generate shareable join link with origin
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
   const joinUrl = `${origin}/?join_board=${activeBoard.id}&role=${selectedRole}&inviter=${encodeURIComponent(
-    currentUser?.full_name || 'Alex Rivera'
+    currentUser?.full_name || 'Team Lead'
   )}`;
 
   const handleCopyLink = async () => {

@@ -10,7 +10,7 @@ interface SlackIntegrationModalProps {
 }
 
 export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({ isOpen, onClose }) => {
-  const { currentWorkspace } = useApp();
+  const { currentWorkspace, currentUser } = useApp();
   const [webhookUrl, setWebhookUrl] = useState('');
   const [channelName, setChannelName] = useState('#engineering-triage');
   const [notifyUrgentOnly, setNotifyUrgentOnly] = useState(true);
@@ -98,7 +98,7 @@ export const SlackIntegrationModal: React.FC<SlackIntegrationModalProps> = ({ is
         title: 'Test Verification: Slack Bridge Connected to HappyTF Work OS',
         priority: 'urgent',
         status: 'Working on it',
-        assigneeName: 'Alex Rivera',
+        assigneeName: currentUser?.full_name || 'Team Lead',
       };
 
       const res = await fetch('/api/tickets', {

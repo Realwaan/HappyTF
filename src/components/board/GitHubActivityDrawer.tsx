@@ -19,6 +19,7 @@ import {
   Radio,
   Github
 } from 'lucide-react';
+import { isDeployed } from '@/lib/environment';
 
 export const GitHubActivityDrawer: React.FC = () => {
   const { 
@@ -27,7 +28,8 @@ export const GitHubActivityDrawer: React.FC = () => {
     gitHubCommits, 
     addGitHubCommit,
     openItemDetail,
-    boardItems
+    boardItems,
+    currentUser
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'feed' | 'setup'>('feed');
@@ -62,15 +64,19 @@ export const GitHubActivityDrawer: React.FC = () => {
     const messageToUse = customMsg.trim() || sampleMessages[Math.floor(Math.random() * sampleMessages.length)];
     const shortSha = Math.random().toString(16).slice(2, 9);
 
+    const committerName = currentUser?.full_name || 'Committer';
+    const committerUsername = currentUser?.email ? currentUser.email.split('@')[0] : 'committer';
+    const committerAvatar = currentUser?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
+
     const simPayload = {
       simulate: true,
       repo: 'happytf/work-os-core',
       branch: selectedBranch,
       message: messageToUse,
       author: {
-        name: 'Alex Rivera',
-        username: 'alexrivera',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        name: committerName,
+        username: committerUsername,
+        avatar: committerAvatar,
       },
       commit: {
         id: shortSha,
@@ -81,9 +87,9 @@ export const GitHubActivityDrawer: React.FC = () => {
         url: `https://github.com/happytf/work-os-core/commit/${shortSha}`,
         timestamp: 'Just now',
         author: {
-          name: 'Alex Rivera',
-          username: 'alexrivera',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+          name: committerName,
+          username: committerUsername,
+          avatar: committerAvatar,
         },
         linked_ticket_number: messageToUse.match(/(?:#)?(TK-\d+)/i)?.[1]?.toUpperCase(),
       },
@@ -184,50 +190,68 @@ export const GitHubActivityDrawer: React.FC = () => {
         {/* Drawer Content */}
         {activeTab === 'feed' ? (
           <div className="flex-1 overflow-y-auto flex flex-col">
-            {/* Quick Simulate Trigger Bar */}
-            <div className="p-4 mx-5 my-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Sparkles size={12} className="text-amber-400" /> Simulate Team Push
-                </span>
-                <div className="flex items-center gap-1 text-[11px] font-mono text-slate-400">
-                  <GitBranch size={11} className="text-emerald-400" />
-                  <select 
-                    value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="bg-transparent border-0 text-slate-300 focus:outline-none cursor-pointer text-xs"
+            {/* Quick Simulate Trigger Bar (Only shown in dev mode) */}
+            {!isDeployed() && (
+              <div className="p-4 mx-5 my-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-amber-400" /> Simulate Team Push
+                  </span>
+                  <div className="flex items-center gap-1 text-[11px] font-mono text-slate-400">
+                    <GitBranch size={11} className="text-emerald-400" />
+                    <select 
+                      value={selectedBranch}
+                      onChange={(e) => setSelectedBranch(e.target.value)}
+                      className="bg-transparent border-0 text-slate-300 focus:outline-none cursor-pointer text-xs"
+                    >
+                      <option value="main" className="bg-[#0e131f]">main</option>
+                      <option value="feat/occ-claiming" className="bg-[#0e131f]">feat/occ-claiming</option>
+                      <option value="fix/gateway-timeout" className="bg-[#0e131f]">fix/gateway-timeout</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Custom commit message or leave empty..."
+                    value={customMsg}
+                    onChange={(e) => setCustomMsg(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSimulatePush()}
+                    className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    disabled={isSimulating}
+                    onClick={handleSimulatePush}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                   >
-                    <option value="main" className="bg-[#0e131f]">main</option>
-                    <option value="feat/occ-claiming" className="bg-[#0e131f]">feat/occ-claiming</option>
-                    <option value="fix/gateway-timeout" className="bg-[#0e131f]">fix/gateway-timeout</option>
-                  </select>
+                    <Send size={12} />
+                    <span>{isSimulating ? 'Pushing...' : 'Push'}</span>
+                  </button>
                 </div>
               </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Custom commit message or leave empty..."
-                  value={customMsg}
-                  onChange={(e) => setCustomMsg(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSimulatePush()}
-                  className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                />
-                <button
-                  type="button"
-                  disabled={isSimulating}
-                  onClick={handleSimulatePush}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <Send size={12} />
-                  <span>{isSimulating ? 'Pushing...' : 'Push'}</span>
-                </button>
-              </div>
-            </div>
+            )}
 
             {/* Commits Stream */}
             <div className="px-5 py-2 flex-1 space-y-3">
-              {gitHubCommits.map((commit, idx) => (
+              {gitHubCommits.length === 0 ? (
+                <div className="py-12 flex flex-col items-center justify-center text-center text-slate-400">
+                  <GitCommit size={32} className="text-slate-600 mb-2.5" />
+                  <p className="text-xs font-medium text-slate-300 mb-1">No commits received yet</p>
+                  <p className="text-[11px] text-slate-500 max-w-xs mb-3">
+                    Connect your GitHub repository in the Webhook Setup tab to stream live commits to this board.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('setup')}
+                    className="px-3 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 text-xs transition-colors cursor-pointer"
+                  >
+                    Configure Webhook
+                  </button>
+                </div>
+              ) : (
+                gitHubCommits.map((commit, idx) => (
                 <div 
                   key={`${commit.id}-${idx}`}
                   className="p-3.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-white/10 transition-all flex flex-col gap-2 group"
@@ -300,7 +324,8 @@ export const GitHubActivityDrawer: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
           </div>
         ) : (

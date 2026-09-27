@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { cacheGet, cacheSet } from '@/lib/redis';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { isDeployed } from '@/lib/environment';
 import { GitHubCommit } from '@/types';
 
 const COMMITS_CACHE_KEY = 'github:recent_commits';
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Simulation support strictly disabled in production
     if (payload.simulate) {
-      if (process.env.NODE_ENV === 'production') {
+      if (isDeployed() || process.env.NODE_ENV === 'production') {
         return NextResponse.json({ error: 'Simulation is disabled in production environments' }, { status: 403 });
       }
     } else if (secret) {
@@ -55,8 +56,8 @@ export async function POST(request: NextRequest) {
         url: 'https://github.com/happytf/work-os-core/commit/' + Math.random().toString(16).slice(2, 9),
         timestamp: 'Just now',
         author: payload.author || {
-          name: 'Alex Rivera',
-          username: 'alexrivera',
+          name: 'Committer',
+          username: 'committer',
           avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
         },
         linked_ticket_number: extractLinkedTicket(payload.message || '#TK-1042'),
