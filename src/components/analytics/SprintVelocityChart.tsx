@@ -8,22 +8,23 @@ import {
   CheckCircle2, 
   Clock, 
   AlertCircle, 
-  CircleDot,
-  Layers,
-  Sparkles
+  CircleDot, 
+  Layers, 
+  Sparkles,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 interface SprintVelocityChartProps {
   items: BoardItem[];
-  onFilterPriority?: (priority: string) => void;
-  activePriorityFilter?: string;
+  defaultExpanded?: boolean;
 }
 
 export const SprintVelocityChart: React.FC<SprintVelocityChartProps> = ({
   items,
-  onFilterPriority,
-  activePriorityFilter = 'all'
+  defaultExpanded = false
 }) => {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [chartMode, setChartMode] = useState<'velocity' | 'distribution'>('velocity');
 
   // Velocity points history across recent sprints (committed vs completed story points)
@@ -71,46 +72,64 @@ export const SprintVelocityChart: React.FC<SprintVelocityChartProps> = ({
     .join(' ');
 
   return (
-    <div className="sprint-velocity-card" id="sprint-velocity-analytics">
-      {/* Top Bar: Title & Tappable Mode Elicitation */}
+    <div className={`sprint-velocity-card ${!isExpanded ? 'collapsed' : ''}`} id="sprint-velocity-analytics">
+      {/* Top Bar: Title & Controls */}
       <div className="analytics-header">
         <div className="analytics-title-group">
           <div className="analytics-icon-badge">
-            {chartMode === 'velocity' ? <TrendingUp size={16} /> : <BarChart2 size={16} />}
+            {chartMode === 'velocity' ? <TrendingUp size={15} /> : <BarChart2 size={15} />}
           </div>
           <div>
             <div className="title-row-badge">
-              <h3 className="analytics-heading">Sprint Analytics & Cycle Health</h3>
+              <h3 className="analytics-heading">Sprint 24 Health & Velocity</h3>
               <span className="sprint-active-pill font-mono">
-                Sprint 24 Active
+                Active Cycle
               </span>
             </div>
             <p className="analytics-subtext">
-              Deterministic cycle velocity and deliverable flow metrics
+              {doneCount} of {items.length} tasks resolved · 34 / 52 points completed
             </p>
           </div>
         </div>
 
-        {/* Mode Selector */}
-        <div className="mode-toggle-group">
+        {/* Action Controls */}
+        <div className="analytics-header-actions">
+          {isExpanded && (
+            <div className="mode-toggle-group">
+              <button
+                type="button"
+                onClick={() => setChartMode('velocity')}
+                className={`mode-btn ${chartMode === 'velocity' ? 'active' : ''}`}
+              >
+                <TrendingUp size={12} />
+                <span>Velocity</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode('distribution')}
+                className={`mode-btn ${chartMode === 'distribution' ? 'active' : ''}`}
+              >
+                <BarChart2 size={12} />
+                <span>Status</span>
+              </button>
+            </div>
+          )}
+
           <button
             type="button"
-            onClick={() => setChartMode('velocity')}
-            className={`mode-btn ${chartMode === 'velocity' ? 'active' : ''}`}
+            className="analytics-toggle-btn"
+            onClick={() => setIsExpanded(!isExpanded)}
+            title={isExpanded ? "Collapse sprint charts" : "Expand sprint charts"}
           >
-            <TrendingUp size={13} />
-            <span>Velocity Trend</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setChartMode('distribution')}
-            className={`mode-btn ${chartMode === 'distribution' ? 'active' : ''}`}
-          >
-            <BarChart2 size={13} />
-            <span>Status Distribution</span>
+            <span>{isExpanded ? "Hide Chart" : "View Velocity"}</span>
+            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           </button>
         </div>
       </div>
+
+      {/* Expanded Chart & Breakdown */}
+      {isExpanded && (
+        <div className="expanded-analytics-body animate-fade-in">
 
       {/* Chart Canvas */}
       {chartMode === 'velocity' ? (
@@ -289,43 +308,57 @@ export const SprintVelocityChart: React.FC<SprintVelocityChartProps> = ({
           </div>
         </div>
       )}
-
-      {/* Interactive Elicitation Filter Chips */}
-      {onFilterPriority && (
-        <div className="filter-priority-row">
-          <span className="filter-priority-label">Filter Tasks by Priority:</span>
-          <div className="filter-chips-list">
-            {[
-              { id: 'all', label: 'All Issues' },
-              { id: 'urgent', label: 'P1 Urgent' },
-              { id: 'high', label: 'P2 High' },
-              { id: 'medium', label: 'P3 Medium' },
-              { id: 'low', label: 'P4 Low' },
-            ].map((chip) => (
-              <button
-                key={chip.id}
-                type="button"
-                onClick={() => onFilterPriority(chip.id)}
-                className={`priority-chip-btn ${activePriorityFilter === chip.id ? 'active' : ''}`}
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+    </div>
+  )}
 
       <style jsx>{`
         .sprint-velocity-card {
           background: var(--bg-surface);
-          border: 1px solid var(--border-default);
+          border: 1px solid var(--border-subtle);
           border-radius: var(--radius-lg);
-          padding: 20px;
-          box-shadow: var(--shadow-md);
-          margin: 20px 0;
+          padding: 16px 20px;
+          margin: 16px 0 24px;
           display: flex;
           flex-direction: column;
           gap: 16px;
+          transition: all var(--transition-normal);
+        }
+
+        .sprint-velocity-card.collapsed {
+          padding: 12px 18px;
+          gap: 0;
+        }
+
+        .sprint-velocity-card.collapsed .analytics-header {
+          padding-bottom: 0;
+          border-bottom: none;
+        }
+
+        .analytics-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .analytics-toggle-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--text-secondary);
+          background: var(--bg-hover);
+          border: 1px solid var(--border-subtle);
+          cursor: pointer;
+          transition: all var(--transition-fast);
+        }
+
+        .analytics-toggle-btn:hover {
+          color: var(--text-primary);
+          background: var(--bg-elevated);
+          border-color: var(--border-default);
         }
 
         .analytics-header {

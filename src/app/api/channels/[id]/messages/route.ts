@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getServerMessages, addServerMessage } from '@/lib/serverChannelsStore';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { ChannelMessage } from '@/types';
 import { getSafeAvatar } from '@/lib/avatarHelper';
+import { checkRateLimit } from '@/lib/redis';
+
+const MessagePayloadSchema = z.object({
+  workspace_id: z.string().optional(),
+  user_id: z.string().optional(),
+  user_name: z.string().max(100).optional(),
+  user_avatar: z.string().optional(),
+  content: z.string().min(1, 'Message content cannot be empty').max(10000),
+  parent_id: z.string().nullable().optional(),
+  linked_ticket_number: z.string().nullable().optional(),
+  is_system: z.boolean().optional(),
+});
 
 export async function GET(
   request: NextRequest,
@@ -57,8 +70,26 @@ export async function POST(
     return NextResponse.json({ error: 'Channel ID is required' }, { status: 400 });
   }
 
+  // 1. Rate limiting on message posting
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
+  const rateLimit = await checkRateLimit(`ratelimit:channel_msg:${ip}`, 60, 60);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many messages sent. Please slow down.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetInSeconds) } }
+    );
+  }
+
   try {
-    const body = await request.json();
+    const rawBody = await request.json();
+    const parseResult = MessagePayloadSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Invalid message payload', details: parseResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
     const {
       workspace_id,
       user_id,
@@ -68,7 +99,7 @@ export async function POST(
       parent_id,
       linked_ticket_number,
       is_system,
-    } = body;
+    } = parseResult.data;
 
     if (!content || !content.trim()) {
       return NextResponse.json({ error: 'Message content cannot be empty' }, { status: 400 });

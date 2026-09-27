@@ -23,12 +23,13 @@ const COLOR_OPTIONS = [
 ];
 
 export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose }) => {
-  const { createBoard } = useApp();
+  const { createBoard, folders } = useApp();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('sprint-agile');
   const [boardName, setBoardName] = useState('Sprint Planning & Agile Delivery');
   const [description, setDescription] = useState('High-velocity two-week sprint tracker with backlog scoping, active delivery, and QA review stages.');
   const [selectedIcon, setSelectedIcon] = useState('kanban');
   const [selectedColor, setSelectedColor] = useState('#3ecf8e');
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -58,10 +59,12 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onCl
       selectedIcon,
       description.trim() || 'Workspace tracking board',
       selectedColor,
-      selectedTemplateId
+      selectedTemplateId,
+      selectedFolderId || undefined
     );
     setBoardName('');
     setDescription('');
+    setSelectedFolderId('');
     onClose();
   };
 
@@ -174,6 +177,35 @@ export const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onCl
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+
+          {/* Destination Folder Selector */}
+          <div className="form-group">
+            <label htmlFor="modal-board-folder" className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Folder size={13} className="text-primary" />
+                <span>Destination Folder (Optional)</span>
+              </span>
+              <span className="text-[11px] text-muted font-normal">Organize into workspace folders</span>
+            </label>
+            <select
+              id="modal-board-folder"
+              className="input-field cursor-pointer"
+              value={selectedFolderId}
+              onChange={(e) => setSelectedFolderId(e.target.value)}
+              style={{
+                background: 'var(--bg-subtle)',
+                color: 'var(--text-primary)',
+                fontSize: '13px'
+              }}
+            >
+              <option value="">None (Workspace Root)</option>
+              {folders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  📁 {f.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Icon Selector (No emojis) */}

@@ -15,11 +15,16 @@
 
 # Misc
 .DS_Store
-*.pem
+# Local env files & secrets
+.env*
+!.env.example
 
-# Local env files
-.env*.local
-.env
+# Certificates & Private Keys
+*.pem
+*.key
+*.crt
+*.p12
+*.keystore
 
 # TypeScript
 *.tsbuildinfo

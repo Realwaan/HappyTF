@@ -153,7 +153,22 @@ const SubItemRow: React.FC<SubItemRowProps> = ({
       <div className="cell cell-owner">
         {sub.assignee ? (
           <div className="sub-assignee-box">
-            <img src={getSafeAvatar(sub.assignee.avatar, sub.assignee.name)} alt={sub.assignee.name} className="sub-avatar" />
+            <img 
+              src={getSafeAvatar(sub.assignee.avatar, sub.assignee.name)} 
+              alt={sub.assignee.name} 
+              className="sub-avatar"
+              style={{
+                width: '18px',
+                height: '18px',
+                minWidth: '18px',
+                minHeight: '18px',
+                maxWidth: '18px',
+                maxHeight: '18px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                flexShrink: 0
+              }} 
+            />
             <span className="truncate">{sub.assignee.name}</span>
           </div>
         ) : (
@@ -188,6 +203,187 @@ const SubItemRow: React.FC<SubItemRowProps> = ({
           <Trash2 size={12} />
         </button>
       </div>
+
+      <style jsx>{`
+        .sub-grid-row {
+          display: grid;
+          grid-template-columns: 36px 1fr 130px 130px 80px 36px;
+          align-items: center;
+          padding: 0 10px;
+        }
+
+        .sub-data-row {
+          border-bottom: 1px solid var(--border-subtle);
+          min-height: 36px;
+          transition: background var(--transition-fast);
+        }
+
+        .sub-data-row:hover {
+          background: var(--bg-hover);
+        }
+
+        .cell {
+          padding: 4px 6px;
+        }
+
+        .cell.relative {
+          position: relative;
+        }
+
+        .cell-check {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .sub-checkbox {
+          width: 16px;
+          height: 16px;
+          border-radius: 4px;
+          border: 1px solid var(--border-default);
+          background: transparent;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          transition: all var(--transition-fast);
+          padding: 0;
+        }
+
+        .sub-checkbox.checked {
+          background: var(--primary);
+          border-color: var(--primary);
+          color: var(--on-primary);
+        }
+
+        .sub-title-input {
+          width: 100%;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: var(--text-primary);
+          font-size: 12px;
+        }
+
+        .sub-title-input.completed {
+          text-decoration: line-through;
+          color: var(--text-muted);
+        }
+
+        .sub-status-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 3px 8px;
+          border-radius: var(--radius-xs);
+          border: 1px solid;
+          font-size: 11px;
+          font-weight: 500;
+          cursor: pointer;
+          max-width: 100%;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .status-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        .sub-popover-menu {
+          position: absolute;
+          top: calc(100% + 4px);
+          left: 6px;
+          z-index: 50;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-sm);
+          box-shadow: var(--shadow-lg);
+          padding: 4px;
+          min-width: 130px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .popover-option {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 8px;
+          border-radius: var(--radius-xs);
+          background: transparent;
+          border: none;
+          color: var(--text-primary);
+          font-size: 11px;
+          cursor: pointer;
+          text-align: left;
+          width: 100%;
+        }
+
+        .popover-option:hover {
+          background: var(--bg-hover);
+        }
+
+        .sub-assignee-box {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 11px;
+          color: var(--text-secondary);
+        }
+
+        .sub-avatar {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          object-fit: cover;
+          flex-shrink: 0;
+        }
+
+        .sub-empty {
+          color: var(--text-muted);
+          font-size: 11px;
+        }
+
+        .sub-points-input {
+          width: 44px;
+          background: transparent;
+          border: 1px solid transparent;
+          border-radius: var(--radius-xs);
+          color: var(--text-secondary);
+          font-family: var(--font-mono);
+          font-size: 11px;
+          padding: 2px 4px;
+          outline: none;
+        }
+
+        .sub-points-input:hover, .sub-points-input:focus {
+          border-color: var(--border-default);
+          background: var(--bg-subtle);
+        }
+
+        .sub-delete-btn {
+          background: transparent;
+          border: none;
+          color: var(--text-muted);
+          cursor: pointer;
+          padding: 4px;
+          border-radius: var(--radius-xs);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color var(--transition-fast);
+        }
+
+        .sub-delete-btn:hover {
+          color: #ef4444;
+        }
+      `}</style>
     </div>
   );
 };

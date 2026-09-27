@@ -36,6 +36,7 @@ import { BOARD_TEMPLATES } from '../lib/boardTemplates';
 import confetti from 'canvas-confetti';
 import { createClient, isSupabaseConfigured } from '../lib/supabase/client';
 import { getSafeAvatar, DEFAULT_AVATAR } from '../lib/avatarHelper';
+import { encryptAtRest, decryptAtRest } from '../lib/clientCrypto';
 
 interface AppContextType {
   currentUser: UserProfile | null;
@@ -145,7 +146,7 @@ interface AppContextType {
   markAllNotificationsAsRead: () => void;
   markNotificationRead: (id: string) => void;
   updateWorkItemStatus: (id: string, newStatus: MyWorkItem['status']) => void;
-  createBoard: (name: string, iconEmoji: string, description: string, color?: string, templateId?: string) => void;
+  createBoard: (name: string, iconEmoji: string, description: string, color?: string, templateId?: string, folderId?: string) => void;
   registerTicketBroadcaster: (fn: (ticket: BoardItem, notif?: any) => void) => void;
   registerTicketBroadcasters: (broadcasters: {
     broadcastInsert?: (ticket: BoardItem, notif?: any) => void;
@@ -171,38 +172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [boardViewMode, setBoardViewMode] = useState<ViewMode>('table');
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [groupsMap, setGroupsMap] = useState<Record<string, BoardGroup[]>>(INITIAL_BOARD_GROUPS);
-  const [itemsMap, setItemsMap] = useState<Record<string, BoardItem[]>>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('happytf_board_items');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') {
-            const sanitized: Record<string, BoardItem[]> = {};
-            for (const bId of Object.keys(parsed)) {
-              if (Array.isArray(parsed[bId])) {
-                sanitized[bId] = parsed[bId].map((it: BoardItem) => ({
-                  ...it,
-                  assignee: it.assignee ? {
-                    ...it.assignee,
-                    avatar: getSafeAvatar(it.assignee.avatar, it.assignee.name),
-                  } : {
-                    id: 'usr-demo-001',
-                    name: 'Alex Rivera',
-                    avatar: DEFAULT_AVATAR,
-                  },
-                }));
-              }
-            }
-            return { ...INITIAL_BOARD_ITEMS, ...sanitized };
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to load itemsMap from localStorage', err);
-      }
-    }
-    return INITIAL_BOARD_ITEMS;
-  });
+  const [itemsMap, setItemsMap] = useState<Record<string, BoardItem[]>>(INITIAL_BOARD_ITEMS);
   const [selectedItem, setSelectedItem] = useState<BoardItem | null>(null);
 
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -217,7 +187,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
   const [isSlackModalOpen, setIsSlackModalOpen] = useState(false);
+  const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
+  const [activeTeamChannelId, setActiveTeamChannelId] = useState('general');
   const [isGitHubFeedOpen, setIsGitHubFeedOpen] = useState(false);
+
+  const openTeamChat = useCallback((channelId?: string) => {
+    if (channelId) setActiveTeamChannelId(channelId);
+    setIsTeamChatOpen(true);
+  }, []);
+
+  const closeTeamChat = useCallback(() => {
+    setIsTeamChatOpen(false);
+  }, []);
   const [gitHubCommits, setGitHubCommits] = useState<GitHubCommit[]>(INITIAL_GITHUB_COMMITS);
   const [activeSettingsTab, setActiveSettingsTab] = useState<'general' | 'members' | 'roles' | 'danger'>('general');
 
@@ -258,24 +239,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [itemsMap]);
 
   const updateBoardItemRef = useRef<((itemId: string, updates: Partial<BoardItem>, ifVersion?: number) => { success: boolean; error?: string }) | null>(null);
+  const isItemsMapLoadedRef = useRef(false);
 
-  // Save itemsMap to localStorage whenever updated
+  // Load itemsMap from localStorage after hydration on mount (encrypted at rest)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    let isCancelled = false;
+    const loadItems = async () => {
       try {
-        localStorage.setItem('happytf_board_items', JSON.stringify(itemsMap));
+        const saved = localStorage.getItem('happytf_board_items');
+        if (saved) {
+          const decrypted = await decryptAtRest(saved);
+          if (isCancelled) return;
+          const parsed = JSON.parse(decrypted);
+          if (parsed && typeof parsed === 'object') {
+            const sanitized: Record<string, BoardItem[]> = {};
+            for (const bId of Object.keys(parsed)) {
+              if (Array.isArray(parsed[bId])) {
+                sanitized[bId] = parsed[bId].map((it: BoardItem) => ({
+                  ...it,
+                  assignee: it.assignee ? {
+                    ...it.assignee,
+                    avatar: getSafeAvatar(it.assignee.avatar, it.assignee.name),
+                  } : {
+                    id: 'usr-demo-001',
+                    name: 'Alex Rivera',
+                    avatar: DEFAULT_AVATAR,
+                  },
+                }));
+              }
+            }
+            setItemsMap((prev) => ({ ...prev, ...sanitized }));
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load itemsMap from localStorage', err);
+      } finally {
+        if (!isCancelled) {
+          isItemsMapLoadedRef.current = true;
+        }
+      }
+    };
+    loadItems();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  // Save itemsMap to localStorage whenever updated (only after loaded, encrypted at rest)
+  useEffect(() => {
+    if (!isItemsMapLoadedRef.current) return;
+    let isCancelled = false;
+    const saveItems = async () => {
+      try {
+        const payload = JSON.stringify(itemsMap);
+        const encrypted = await encryptAtRest(payload);
+        if (!isCancelled) {
+          localStorage.setItem('happytf_board_items', encrypted);
+        }
       } catch (err) {
         console.warn('Failed to save itemsMap to localStorage', err);
       }
-    }
+    };
+    saveItems();
+    return () => {
+      isCancelled = true;
+    };
   }, [itemsMap]);
 
   // Synchronize itemsMap across tabs on the same origin via storage event
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
+    const handleStorageChange = async (e: StorageEvent) => {
       if (e.key === 'happytf_board_items' && e.newValue) {
         try {
-          const parsed = JSON.parse(e.newValue);
+          const decrypted = await decryptAtRest(e.newValue);
+          const parsed = JSON.parse(decrypted);
           if (parsed && typeof parsed === 'object') {
             setItemsMap(parsed);
             if (selectedItemRef.current) {
@@ -1681,7 +1718,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     iconEmoji: string, 
     description: string, 
     color?: string, 
-    templateId?: string
+    templateId?: string,
+    folderId?: string
   ) => {
     if (!currentWorkspace) return;
     const wsId = currentWorkspace.id;
@@ -1752,6 +1790,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       icon_emoji: boardIcon,
       color: boardColor,
       template_id: templateId,
+      folder_id: folderId || undefined,
       description: description || matchedTemplate?.description || 'New project board',
       item_count: starterItems.length,
       updated_at: 'Just now',
@@ -1986,6 +2025,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setContextModalOpen: setIsContextModalOpen,
         isSlackModalOpen,
         setSlackModalOpen: setIsSlackModalOpen,
+        isTeamChatOpen,
+        setTeamChatOpen: setIsTeamChatOpen,
+        activeTeamChannelId,
+        setActiveTeamChannelId,
+        openTeamChat,
+        closeTeamChat,
         isGitHubFeedOpen,
         setGitHubFeedOpen: setIsGitHubFeedOpen,
         toggleGitHubFeed,

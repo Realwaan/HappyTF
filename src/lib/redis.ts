@@ -141,7 +141,7 @@ export async function checkRateLimit(
   identifier: string,
   maxRequests = 30,
   windowSeconds = 60
-): Promise<{ allowed: boolean; remaining: number }> {
+): Promise<{ allowed: boolean; remaining: number; resetInSeconds: number }> {
   const key = `ratelimit:${identifier}`;
   const now = Date.now();
   const windowStart = now - windowSeconds * 1000;
@@ -156,6 +156,7 @@ export async function checkRateLimit(
     return {
       allowed: count <= maxRequests,
       remaining: Math.max(0, maxRequests - count),
+      resetInSeconds: windowSeconds,
     };
   }
 
@@ -176,5 +177,6 @@ export async function checkRateLimit(
   return {
     allowed: count <= maxRequests,
     remaining: Math.max(0, maxRequests - count),
+    resetInSeconds: windowSeconds,
   };
 }

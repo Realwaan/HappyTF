@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cacheGet, cacheSet } from '@/lib/redis';
+import { z } from 'zod';
+import { cacheGet, cacheSet, checkRateLimit } from '@/lib/redis';
 
 export interface SlackWorkspaceConfig {
   webhookUrl: string;
@@ -8,6 +9,23 @@ export interface SlackWorkspaceConfig {
   notifyStatusChange: boolean;
   updatedAt: string;
 }
+
+// Strict SSRF guard: only official Slack webhooks are permitted
+const SLACK_WEBHOOK_PATTERN = /^https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9_\-\/]+$/;
+
+const SlackConfigSchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+  webhookUrl: z
+    .string()
+    .refine((url) => !url || SLACK_WEBHOOK_PATTERN.test(url), {
+      message: 'Invalid Slack webhook URL. Must match https://hooks.slack.com/services/... and avoid internal networks.',
+    })
+    .optional()
+    .or(z.literal('')),
+  channelName: z.string().max(100).optional(),
+  notifyUrgentOnly: z.boolean().optional(),
+  notifyStatusChange: z.boolean().optional(),
+});
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -35,16 +53,33 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { workspaceId, webhookUrl, channelName, notifyUrgentOnly, notifyStatusChange } = body;
+  // 1. IP-based rate limiting
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
+  const rateLimit = await checkRateLimit(`ratelimit:slack_config:${ip}`, 30, 60);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetInSeconds) } }
+    );
+  }
 
-    if (!workspaceId) {
+  try {
+    const rawBody = await req.json();
+
+    // 2. Server-side Zod validation & SSRF guards
+    const parseResult = SlackConfigSchema.safeParse(rawBody);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { success: false, error: 'Missing workspaceId' },
+        { 
+          success: false, 
+          error: 'Validation failed', 
+          details: parseResult.error.flatten().fieldErrors 
+        },
         { status: 400 }
       );
     }
+
+    const { workspaceId, webhookUrl, channelName, notifyUrgentOnly, notifyStatusChange } = parseResult.data;
 
     const config: SlackWorkspaceConfig = {
       webhookUrl: webhookUrl || '',

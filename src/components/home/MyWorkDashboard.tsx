@@ -30,6 +30,7 @@ export const MyWorkDashboard: React.FC = () => {
     myWorkItems, 
     recentBoards, 
     boardItems,
+    allWorkspaceItems,
     updateWorkItemStatus, 
     setCreateBoardOpen,
     setWorkspaceSettingsOpen,
@@ -91,7 +92,6 @@ export const MyWorkDashboard: React.FC = () => {
           >
             <Plus size={15} />
             <span className="font-semibold">New Board</span>
-            <kbd className="hero-cta-kbd font-mono">B</kbd>
           </button>
           <button
             id="hero-context-btn"
@@ -102,7 +102,6 @@ export const MyWorkDashboard: React.FC = () => {
           >
             <Database size={15} />
             <span>Workspace Memory</span>
-            <kbd className="hero-cta-kbd font-mono">M</kbd>
           </button>
           <button
             id="hero-invite-btn"
@@ -123,7 +122,7 @@ export const MyWorkDashboard: React.FC = () => {
           <div className="metric-top">
             <span className="metric-title">Assigned to Me</span>
             <div className="metric-icon-box bg-primary-glow">
-              <Kanban size={18} className="text-primary" />
+              <Kanban size={17} className="text-primary" />
             </div>
           </div>
           <div className="metric-value">{totalAssigned}</div>
@@ -134,7 +133,7 @@ export const MyWorkDashboard: React.FC = () => {
           <div className="metric-top">
             <span className="metric-title">Urgent / High Priority</span>
             <div className="metric-icon-box bg-danger-glow">
-              <AlertCircle size={18} className="text-danger" />
+              <AlertCircle size={17} className="text-danger" />
             </div>
           </div>
           <div className="metric-value" style={{ color: '#ef4444' }}>{urgentCount}</div>
@@ -145,7 +144,7 @@ export const MyWorkDashboard: React.FC = () => {
           <div className="metric-top">
             <span className="metric-title">Completed Tasks</span>
             <div className="metric-icon-box bg-success-glow">
-              <CheckCircle2 size={18} className="text-success" />
+              <CheckCircle2 size={17} className="text-success" />
             </div>
           </div>
           <div className="metric-value" style={{ color: '#10b981' }}>{completedCount}</div>
@@ -156,7 +155,7 @@ export const MyWorkDashboard: React.FC = () => {
           <div className="metric-top">
             <span className="metric-title">Active Boards</span>
             <div className="metric-icon-box bg-info-glow">
-              <Layers size={18} className="text-info" />
+              <Layers size={17} className="text-info" />
             </div>
           </div>
           <div className="metric-value">{activeBoardsCount}</div>
@@ -164,11 +163,10 @@ export const MyWorkDashboard: React.FC = () => {
         </div>
       </section>
 
-      {/* 2.5 Deterministic Sprint Velocity & Status Analytics (chart_display_v0 & ask_user_input_v0 pattern) */}
+      {/* 2.5 Collapsible Sprint Velocity & Cycle Health */}
       <SprintVelocityChart 
-        items={boardItems} 
-        onFilterPriority={setFilterPriority}
-        activePriorityFilter={filterPriority}
+        items={allWorkspaceItems && allWorkspaceItems.length > 0 ? allWorkspaceItems : boardItems} 
+        defaultExpanded={false}
       />
 
       {/* 3. Main Tabs: "Assigned to Me" & "Recently Visited Boards" */}
@@ -196,20 +194,23 @@ export const MyWorkDashboard: React.FC = () => {
           </div>
 
           {activeTab === 'assigned' && (
-            <div className="filter-tools">
-              <Filter size={14} className="text-muted" />
-              <select
-                id="filter-priority-select"
-                className="filter-select"
-                value={filterPriority}
-                onChange={(e) => setFilterPriority(e.target.value)}
-              >
-                <option value="all">All Priorities</option>
-                <option value="urgent">Urgent</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
+            <div className="filter-chips-group">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'urgent', label: 'Urgent' },
+                { id: 'high', label: 'High' },
+                { id: 'medium', label: 'Medium' },
+                { id: 'low', label: 'Low' },
+              ].map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setFilterPriority(chip.id)}
+                  className={`filter-chip ${filterPriority === chip.id ? 'active' : ''}`}
+                >
+                  {chip.label}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -516,16 +517,17 @@ export const MyWorkDashboard: React.FC = () => {
           display: flex;
           align-items: center;
           justify-content: center;
+          border: 1px solid var(--border-subtle);
         }
-        .bg-primary-glow { background: var(--primary-glow); }
-        .bg-danger-glow { background: var(--danger-bg); }
-        .bg-success-glow { background: var(--success-bg); }
-        .bg-info-glow { background: var(--info-bg); }
+        .bg-primary-glow { background: rgba(62, 207, 142, 0.1); color: var(--primary); }
+        .bg-danger-glow { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .bg-success-glow { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .bg-info-glow { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; }
 
         .metric-value {
-          font-size: 32px;
-          font-weight: 800;
-          letter-spacing: -0.03em;
+          font-size: 30px;
+          font-weight: 700;
+          letter-spacing: -0.02em;
           color: var(--text-primary);
         }
 
@@ -539,22 +541,22 @@ export const MyWorkDashboard: React.FC = () => {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 12px 20px;
+          padding: 10px 18px;
           border-bottom: 1px solid var(--border-subtle);
           background: var(--bg-subtle);
         }
 
         .tabs-left {
           display: flex;
-          gap: 12px;
+          gap: 8px;
         }
 
         .section-tab {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 8px 14px;
-          border-radius: 10px;
+          padding: 6px 12px;
+          border-radius: 8px;
           font-size: 13px;
           font-weight: 600;
           color: var(--text-secondary);
@@ -565,31 +567,47 @@ export const MyWorkDashboard: React.FC = () => {
           background: var(--bg-hover);
         }
         .section-tab.active {
-          color: var(--primary-light);
+          color: var(--text-primary);
           background: var(--bg-elevated);
-          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         }
 
         .tab-pill {
           font-size: 11px;
-          padding: 1px 7px;
+          padding: 1px 6px;
           border-radius: 10px;
           background: rgba(255, 255, 255, 0.08);
+          color: var(--text-muted);
         }
 
-        .filter-tools {
+        .filter-chips-group {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 4px;
         }
 
-        .filter-select {
-          padding: 6px 12px;
-          border-radius: 8px;
-          background: var(--bg-surface);
-          border: 1px solid var(--border-default);
+        .filter-chip {
+          padding: 4px 10px;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 500;
+          color: var(--text-muted);
+          background: transparent;
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+        }
+
+        .filter-chip:hover {
           color: var(--text-primary);
-          font-size: 12px;
+          background: var(--bg-hover);
+        }
+
+        .filter-chip.active {
+          color: var(--primary);
+          background: rgba(62, 207, 142, 0.1);
+          border-color: rgba(62, 207, 142, 0.25);
+          font-weight: 600;
         }
 
         /* Items Table */

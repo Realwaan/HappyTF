@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { cacheGet, cacheSet, cacheDelete, checkRateLimit } from '@/lib/redis';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { addServerMessage } from '@/lib/serverChannelsStore';
 import { getServerBoardItems, addServerBoardItem } from '@/lib/serverTicketsStore';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const CreateTicketSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().min(1, 'Title is required').max(500),
+  board_id: z.string().min(1, 'board_id is required'),
+  workspace_id: z.string().min(1, 'workspace_id is required'),
+  group_id: z.string().optional(),
+  description: z.string().max(10000).optional(),
+  status: z.string().optional(),
+  status_color: z.string().optional(),
+  priority: z.string().optional(),
+  severity: z.string().optional(),
+  due_date: z.string().optional(),
+  assignee: z.object({
+    id: z.string(),
+    name: z.string(),
+    avatar: z.string().optional(),
+  }).optional(),
+  tags: z.array(z.string()).optional(),
+  subtasks: z.array(z.any()).optional(),
+});
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -58,34 +80,50 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { title, board_id, workspace_id, group_id, priority, severity, due_date, assignee, tags, description } = body;
+    const rawBody = await request.json();
+    const parseResult = CreateTicketSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Invalid ticket payload', details: parseResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
 
-    if (!title || !title.trim()) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
-    }
-    if (!board_id || !workspace_id) {
-      return NextResponse.json({ error: 'board_id and workspace_id are required' }, { status: 400 });
-    }
+    const {
+      id,
+      title,
+      board_id,
+      workspace_id,
+      group_id,
+      priority,
+      severity,
+      due_date,
+      assignee,
+      tags,
+      description,
+      status,
+      status_color,
+      subtasks,
+    } = parseResult.data;
 
     const ticketNumber = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const newTicket = {
-      id: body.id || `item-${Date.now()}`,
+      id: id || `item-${Date.now()}`,
       ticket_number: ticketNumber,
       workspace_id,
       board_id,
       group_id: group_id || 'group-1',
       title: title.trim(),
       description: description || '',
-      status: body.status || 'Working on it',
-      status_color: body.status_color || '#f59e0b',
+      status: status || 'Working on it',
+      status_color: status_color || '#f59e0b',
       priority: priority || 'medium',
       severity: severity || 'minor',
       due_date: due_date || 'Next week',
       assignee: assignee || { id: 'usr-demo-001', name: 'Alex Rivera', avatar: '' },
       tags: tags || ['Ticket'],
-      subtasks: body.subtasks || [],
+      subtasks: subtasks || [],
       version: 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

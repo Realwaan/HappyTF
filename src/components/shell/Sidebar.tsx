@@ -17,9 +17,12 @@ import {
   FolderPlus,
   Keyboard,
   Folder,
-  FolderOpen
+  FolderOpen,
+  FolderInput,
+  Trash2
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
+import { BoardSummary } from '../../types';
 
 export const Sidebar: React.FC = () => {
   const { 
@@ -31,6 +34,7 @@ export const Sidebar: React.FC = () => {
     createFolder,
     toggleFolderCollapse,
     deleteFolder,
+    moveBoardToFolder,
     isSidebarCollapsed, 
     isMobileSidebarOpen,
     setMobileSidebarOpen,
@@ -51,12 +55,17 @@ export const Sidebar: React.FC = () => {
   const [isWsDropdownOpen, setIsWsDropdownOpen] = useState(false);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [activeMenuBoardId, setActiveMenuBoardId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const folderMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsWsDropdownOpen(false);
+      }
+      if (folderMenuRef.current && !folderMenuRef.current.contains(e.target as Node)) {
+        setActiveMenuBoardId(null);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -277,124 +286,187 @@ export const Sidebar: React.FC = () => {
             </div>
           )}
 
-          <div className="boards-list">
-            {/* 1. Folders with nested boards */}
-            {folders.map((f) => {
-              const folderBoards = recentBoards.filter((b) => b.folder_id === f.id);
-              return (
-                <div key={f.id} className="sidebar-folder-node" style={{ marginBottom: '4px' }}>
-                  <div
-                    className="folder-tree-header"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: isSidebarCollapsed ? 'center' : 'space-between',
-                      padding: '5px 8px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      color: 'var(--text-secondary)',
-                      transition: 'background 0.15s ease',
-                    }}
-                    title={f.name}
-                    onClick={() => toggleFolderCollapse(f.id)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        {f.collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                      </span>
-                      <span style={{ color: f.color || '#3ecf8e' }}>
-                        {f.collapsed ? <Folder size={13} /> : <FolderOpen size={13} />}
-                      </span>
-                      {!isSidebarCollapsed && (
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {f.name}
-                        </span>
-                      )}
-                    </div>
-                    {!isSidebarCollapsed && (
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
-                        {folderBoards.length}
-                      </span>
-                    )}
-                  </div>
+          {/* Helper to render board with move-to-folder quick action */}
+          {(() => {
+            const renderBoardItem = (b: BoardSummary) => (
+              <div key={b.id} className="board-row-container" style={{ position: 'relative', width: '100%', marginBottom: '1px' }}>
+                <button
+                  id={`sidebar-board-${b.id}`}
+                  type="button"
+                  className={`board-nav-item ${activeBoardId === b.id && activeView === 'board' ? 'active' : ''}`}
+                  title={b.name}
+                  onClick={() => navigateToBoard(b.id)}
+                  style={{ width: '100%', paddingRight: !isSidebarCollapsed ? '28px' : undefined }}
+                >
+                  <span className="board-icon-wrap">
+                    <IconBadge nameOrEmoji={b.icon_emoji} size={b.folder_id ? 13 : 14} />
+                  </span>
+                  {!isSidebarCollapsed && (
+                    <span className="board-name">{b.name}</span>
+                  )}
+                </button>
 
-                  {!f.collapsed && (
-                    <div style={{ paddingLeft: isSidebarCollapsed ? '0' : '14px', borderLeft: isSidebarCollapsed ? 'none' : '1px solid rgba(255,255,255,0.08)', marginLeft: isSidebarCollapsed ? '0' : '12px', marginTop: '2px' }}>
-                      {folderBoards.map((b) => (
+                {!isSidebarCollapsed && (
+                  <button
+                    type="button"
+                    className="board-folder-action-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveMenuBoardId(activeMenuBoardId === b.id ? null : b.id);
+                    }}
+                    title="Move board to folder..."
+                  >
+                    <FolderInput size={12} />
+                  </button>
+                )}
+
+                {/* Move to folder popover */}
+                {activeMenuBoardId === b.id && !isSidebarCollapsed && (
+                  <div 
+                    className="folder-menu-popover glass-panel animate-pop-in" 
+                    ref={folderMenuRef}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="folder-menu-header">Move to Folder</div>
+                    {b.folder_id && (
+                      <button
+                        type="button"
+                        className="folder-menu-item"
+                        onClick={() => {
+                          moveBoardToFolder(b.id, null);
+                          setActiveMenuBoardId(null);
+                        }}
+                      >
+                        <span className="text-muted">🏠</span>
+                        <span>Workspace Root</span>
+                      </button>
+                    )}
+                    {folders.map((f) => {
+                      const isCurrent = b.folder_id === f.id;
+                      return (
                         <button
-                          key={b.id}
-                          id={`sidebar-board-${b.id}`}
+                          key={f.id}
                           type="button"
-                          className={`board-nav-item ${activeBoardId === b.id && activeView === 'board' ? 'active' : ''}`}
-                          title={b.name}
-                          onClick={() => navigateToBoard(b.id)}
-                          style={{ margin: '1px 0' }}
+                          className={`folder-menu-item ${isCurrent ? 'active' : ''}`}
+                          onClick={() => {
+                            moveBoardToFolder(b.id, f.id);
+                            setActiveMenuBoardId(null);
+                          }}
                         >
-                          <span className="board-icon-wrap">
-                            <IconBadge nameOrEmoji={b.icon_emoji} size={13} />
+                          <span style={{ color: f.color || '#3ecf8e' }}>📁</span>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                          {isCurrent && <Check size={11} className="text-emerald-400" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+
+            return (
+              <div className="boards-list">
+                {/* 1. Folders with nested boards */}
+                {folders.map((f) => {
+                  const folderBoards = recentBoards.filter((b) => b.folder_id === f.id);
+                  return (
+                    <div key={f.id} className="sidebar-folder-node" style={{ marginBottom: '4px' }}>
+                      <div
+                        className="folder-tree-header"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: isSidebarCollapsed ? 'center' : 'space-between',
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          color: 'var(--text-secondary)',
+                          transition: 'background 0.15s ease',
+                        }}
+                        title={f.name}
+                        onClick={() => toggleFolderCollapse(f.id)}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>
+                            {f.collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                          </span>
+                          <span style={{ color: f.color || '#3ecf8e' }}>
+                            {f.collapsed ? <Folder size={13} /> : <FolderOpen size={13} />}
                           </span>
                           {!isSidebarCollapsed && (
-                            <span className="board-name">{b.name}</span>
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {f.name}
+                            </span>
                           )}
-                        </button>
-                      ))}
-                      {folderBoards.length === 0 && !isSidebarCollapsed && (
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '4px 6px', fontStyle: 'italic' }}>
-                          No boards in folder
+                        </div>
+                        {!isSidebarCollapsed && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)' }}>
+                              {folderBoards.length}
+                            </span>
+                            <button
+                              type="button"
+                              className="folder-delete-action-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Delete folder "${f.name}"? Boards in this folder will be kept and moved to the workspace root.`)) {
+                                  deleteFolder(f.id);
+                                }
+                              }}
+                              title={`Delete folder "${f.name}"`}
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {!f.collapsed && (
+                        <div style={{ paddingLeft: isSidebarCollapsed ? '0' : '14px', borderLeft: isSidebarCollapsed ? 'none' : '1px solid rgba(255,255,255,0.08)', marginLeft: isSidebarCollapsed ? '0' : '12px', marginTop: '2px' }}>
+                          {folderBoards.map(renderBoardItem)}
+                          {folderBoards.length === 0 && !isSidebarCollapsed && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '4px 6px', fontStyle: 'italic' }}>
+                              No boards in folder
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
 
-            {/* 2. Direct Boards (outside folders) */}
-            {recentBoards.filter((b) => !b.folder_id).map((b) => (
-              <button
-                key={b.id}
-                id={`sidebar-board-${b.id}`}
-                type="button"
-                className={`board-nav-item ${activeBoardId === b.id && activeView === 'board' ? 'active' : ''}`}
-                title={b.name}
-                onClick={() => navigateToBoard(b.id)}
-              >
-                <span className="board-icon-wrap">
-                  <IconBadge nameOrEmoji={b.icon_emoji} size={14} />
-                </span>
-                {!isSidebarCollapsed && (
-                  <span className="board-name">{b.name}</span>
+                {/* 2. Direct Boards (outside folders) */}
+                {recentBoards.filter((b) => !b.folder_id).map(renderBoardItem)}
+
+                {recentBoards.length === 0 && folders.length === 0 && !isSidebarCollapsed && (
+                  <div style={{ padding: '12px 8px', textAlign: 'center' }}>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>No boards in workspace</p>
+                    <button
+                      type="button"
+                      onClick={() => setCreateBoardOpen(true)}
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--primary)',
+                        background: 'rgba(62, 207, 142, 0.08)',
+                        border: '1px solid rgba(62, 207, 142, 0.2)',
+                        borderRadius: '6px',
+                        padding: '4px 10px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Plus size={12} />
+                      <span>Create Board</span>
+                    </button>
+                  </div>
                 )}
-              </button>
-            ))}
-
-            {recentBoards.length === 0 && folders.length === 0 && !isSidebarCollapsed && (
-              <div style={{ padding: '12px 8px', textAlign: 'center' }}>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>No boards in workspace</p>
-                <button
-                  type="button"
-                  onClick={() => setCreateBoardOpen(true)}
-                  style={{
-                    fontSize: '11px',
-                    color: 'var(--primary)',
-                    background: 'rgba(62, 207, 142, 0.08)',
-                    border: '1px solid rgba(62, 207, 142, 0.2)',
-                    borderRadius: '6px',
-                    padding: '4px 10px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <Plus size={12} />
-                  <span>Create Board</span>
-                </button>
               </div>
-            )}
-          </div>
+            );
+          })()}
         </div>
       </nav>
 
@@ -784,6 +856,125 @@ export const Sidebar: React.FC = () => {
         }
         .board-nav-item.active .board-name {
           color: var(--text-primary);
+        }
+
+        .board-row-container {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .board-folder-action-btn {
+          position: absolute;
+          right: 6px;
+          top: 50%;
+          transform: translateY(-50%);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 22px;
+          height: 22px;
+          border-radius: 4px;
+          color: var(--text-muted);
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          opacity: 0;
+          transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+          z-index: 2;
+        }
+
+        .board-row-container:hover .board-folder-action-btn,
+        .board-folder-action-btn:focus {
+          opacity: 1;
+        }
+
+        .board-folder-action-btn:hover {
+          color: var(--text-primary);
+          background: var(--bg-hover);
+        }
+
+        .folder-delete-action-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          border-radius: 4px;
+          color: var(--text-muted);
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          opacity: 0;
+          transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+        }
+
+        .sidebar-folder-node:hover .folder-delete-action-btn,
+        .folder-tree-header:hover .folder-delete-action-btn,
+        .folder-delete-action-btn:focus {
+          opacity: 1;
+        }
+
+        .folder-delete-action-btn:hover {
+          color: #ef4444;
+          background: rgba(239, 68, 68, 0.12);
+        }
+
+        .folder-menu-popover {
+          position: absolute;
+          top: calc(100% + 2px);
+          left: 8px;
+          right: 8px;
+          z-index: 60;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-default);
+          border-radius: 8px;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+          padding: 6px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          max-height: 220px;
+          overflow-y: auto;
+          backdrop-filter: blur(12px);
+        }
+
+        .folder-menu-header {
+          font-size: 10px;
+          font-weight: 700;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          padding: 4px 6px;
+          border-bottom: 1px solid var(--border-subtle);
+          margin-bottom: 2px;
+        }
+
+        .folder-menu-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 8px;
+          font-size: 12px;
+          color: var(--text-secondary);
+          border-radius: 6px;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          width: 100%;
+          text-align: left;
+          transition: background var(--transition-fast), color var(--transition-fast);
+        }
+
+        .folder-menu-item:hover {
+          background: var(--bg-hover);
+          color: var(--text-primary);
+        }
+
+        .folder-menu-item.active {
+          background: rgba(16, 185, 129, 0.12);
+          color: #10b981;
+          font-weight: 500;
         }
 
         /* Footer */

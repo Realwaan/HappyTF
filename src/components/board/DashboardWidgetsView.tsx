@@ -154,7 +154,9 @@ export const DashboardWidgetsView: React.FC<DashboardWidgetsViewProps> = ({ boar
                   className="urgent-item-row"
                   onClick={() => onSelectItem(item)}
                 >
-                  <span className="urgent-ticket-id">{item.ticket_number || item.id.slice(0, 6)}</span>
+                  <span className="urgent-ticket-id">
+                    {item.ticket_number || `#TK-${item.id.replace('item-', '').padStart(3, '0')}`}
+                  </span>
                   <span className="urgent-ticket-title">{item.title}</span>
                   <ArrowRight size={12} className="urgent-arrow" />
                 </button>

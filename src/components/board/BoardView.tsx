@@ -242,9 +242,7 @@ export const BoardView: React.FC = () => {
         </span>
       );
     }
-    return (
-      <span className="text-[11px] text-slate-500 font-mono">Web OS</span>
-    );
+    return null;
   };
 
   return (
@@ -271,17 +269,15 @@ export const BoardView: React.FC = () => {
             </div>
           </div>
 
-          <div className="board-meta-right flex items-center gap-3">
+          <div className="board-meta-right flex items-center gap-2.5">
             {/* Realtime Status Badge with Online Count */}
-            <button
-              type="button"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono cursor-pointer hover:bg-emerald-500/15 transition-all"
-              onClick={() => setInviteModalOpen(true)}
-              title="Click to view live presence and invite teammates"
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono"
+              title="Realtime sync status"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               <span>{isRealtimeConnected ? `${onlineUsers.length} Online` : 'Sync Ready'}</span>
-            </button>
+            </div>
 
             <button
               id="open-github-feed-btn"
@@ -307,26 +303,14 @@ export const BoardView: React.FC = () => {
               title="Configure Slack webhooks and alerts"
             >
               <MessageSquare size={13} className="text-indigo-400" />
-              <span>Slack & Webhooks</span>
-            </button>
-
-            {/* "+ Invite" Button to open modal */}
-            <button
-              id="invite-collaborators-btn"
-              type="button"
-              className="btn btn-primary btn-sm flex items-center gap-1.5 text-xs font-semibold cursor-pointer shadow-sm hover:shadow-emerald-500/20"
-              onClick={() => setInviteModalOpen(true)}
-              title="Invite teammates or share join link"
-            >
-              <UserPlus size={13} />
-              <span>+ Invite</span>
+              <span>Slack</span>
             </button>
 
             {/* Realtime Active Collaborators Avatar Stack */}
             <div 
-              className="avatar-stack flex items-center cursor-pointer"
+              className="avatar-stack flex items-center cursor-pointer ml-1"
               onClick={() => setInviteModalOpen(true)}
-              title="Click to view active online collaborators"
+              title="Active collaborators (click to manage)"
             >
               {onlineUsers.length > 0 ? (
                 onlineUsers.map((user, i) => (
@@ -465,17 +449,13 @@ export const BoardView: React.FC = () => {
                   {!group.collapsed && (
                     <div className="group-table-content">
                       {/* Column Header Grid */}
-                      <div className="table-header-grid" style={{ gridTemplateColumns: 'minmax(280px, 1.8fr) 155px 150px 95px 115px 85px 115px 95px' }}>
+                      <div className="table-header-grid" style={{ gridTemplateColumns: 'minmax(280px, 2fr) 140px 140px 90px 120px 80px 90px' }}>
                         <div className="col-name">TASK / SUMMARY</div>
                         <div className="col-status">STATUS</div>
                         <div className="col-assignee">ASSIGNEE</div>
                         <div className="col-priority">PRIORITY</div>
                         <div className="col-sla">SLA DEADLINE</div>
                         <div className="col-pts font-mono">POINTS</div>
-                        <div className="col-formula font-mono flex items-center gap-1 text-emerald-400" title="mondayDB Formula Calculation">
-                          <Calculator size={11} />
-                          <span>SLA VELOCITY</span>
-                        </div>
                         <div className="col-subtasks font-mono">SUB-ITEMS</div>
                       </div>
 
@@ -494,7 +474,7 @@ export const BoardView: React.FC = () => {
                               <div
                                 className="table-row"
                                 style={{ 
-                                  gridTemplateColumns: 'minmax(280px, 1.8fr) 155px 150px 95px 115px 85px 115px 95px',
+                                  gridTemplateColumns: 'minmax(280px, 2fr) 140px 140px 90px 120px 80px 90px',
                                   zIndex: isRowActive ? 70 : 1,
                                   position: 'relative'
                                 }}
@@ -623,13 +603,6 @@ export const BoardView: React.FC = () => {
                                   </span>
                                 </div>
 
-                                {/* Formula Column (mondayDB) */}
-                                <div className="col-formula font-mono text-xs text-emerald-400">
-                                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[11px]">
-                                    {formulaVal}h
-                                  </span>
-                                </div>
-
                                 {/* Sub-items Pill */}
                                 <div className="col-subtasks" onClick={(e) => e.stopPropagation()}>
                                   <button
@@ -685,30 +658,19 @@ export const BoardView: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* mondayDB Group Summary Footer */}
+                      {/* Group Summary Footer */}
                       <div className="group-summary-footer">
                         <div className="footer-status-group">
-                          <span className="footer-status-label">Group Status:</span>
-                          <div className="footer-battery-wrap">
-                            <StatusBatteryBar segments={groupAgg.statusBattery} height={14} />
-                          </div>
+                          <span className="text-xs text-muted font-mono">{groupItems.length} tasks</span>
+                          <span className="text-muted">·</span>
+                          <span className="text-xs text-muted font-mono">{groupAgg.numbersSum} pts</span>
                         </div>
-                        <div className="footer-metrics-group">
-                          <div className="footer-metric-item">
-                            <span className="footer-metric-label">Sum:</span>
-                            <strong className="footer-metric-val">{groupAgg.numbersSum} pts</strong>
+                        {groupAgg.subItemCount > 0 && (
+                          <div className="footer-metrics-group">
+                            <span className="footer-metric-label">Sub-items:</span>
+                            <strong className="footer-metric-emerald">{groupAgg.subItemsCompleted}/{groupAgg.subItemCount} ({groupAgg.subItemProgressPercent}%)</strong>
                           </div>
-                          <div className="footer-metric-item">
-                            <span className="footer-metric-label">Avg:</span>
-                            <strong className="footer-metric-val">{groupAgg.numbersAvg} pts</strong>
-                          </div>
-                          {groupAgg.subItemCount > 0 && (
-                            <div className="footer-metric-item">
-                              <span className="footer-metric-label">Sub-items:</span>
-                              <strong className="footer-metric-emerald">{groupAgg.subItemsCompleted}/{groupAgg.subItemCount} ({groupAgg.subItemProgressPercent}%)</strong>
-                            </div>
-                          )}
-                        </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -716,30 +678,32 @@ export const BoardView: React.FC = () => {
               );
             })}
 
-            {/* Overall Board Battery & mondayDB Summary */}
+            {/* Overall Board Progress Footer */}
             <div className="board-summary-footer">
               <div className="board-summary-left">
                 <div className="board-battery-title">
-                  <PieChart size={16} className="text-emerald-400" />
-                  <span className="board-battery-label font-mono">Overall Board Battery</span>
+                  <PieChart size={15} className="text-emerald-400" />
+                  <span className="board-battery-label font-mono">Board Status</span>
                 </div>
                 <div className="board-battery-wrap">
-                  <StatusBatteryBar segments={boardAgg.statusBattery} height={18} />
+                  <StatusBatteryBar segments={boardAgg.statusBattery} height={12} />
                 </div>
               </div>
               <div className="board-metrics-right font-mono">
                 <div className="board-metric-item">
-                  <span className="footer-metric-label">Total Tasks:</span>
-                  <strong className="footer-metric-val">{boardAgg.totalItems}</strong>
+                  <span className="footer-metric-label">Total:</span>
+                  <strong className="footer-metric-val">{boardAgg.totalItems} tasks</strong>
                 </div>
                 <div className="board-metric-item">
-                  <span className="footer-metric-label">Total Velocity:</span>
+                  <span className="footer-metric-label">Velocity:</span>
                   <strong className="footer-metric-indigo">{boardAgg.totalNumbersSum} pts</strong>
                 </div>
-                <div className="board-metric-item">
-                  <span className="footer-metric-label">Sub-Tasks Done:</span>
-                  <strong className="footer-metric-emerald">{boardAgg.totalSubItemsCompleted}/{boardAgg.totalSubItems} ({boardAgg.overallProgressPercent}%)</strong>
-                </div>
+                {boardAgg.totalSubItems > 0 && (
+                  <div className="board-metric-item">
+                    <span className="footer-metric-label">Sub-tasks:</span>
+                    <strong className="footer-metric-emerald">{boardAgg.totalSubItemsCompleted}/{boardAgg.totalSubItems}</strong>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -795,7 +759,7 @@ export const BoardView: React.FC = () => {
                                 style={{ borderColor: `${u.color}50`, backgroundColor: `${u.color}15`, color: u.color }}
                                 title={`${u.name} is viewing this card`}
                               >
-                                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: u.color }} />
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: u.color }} />
                                 <span>{u.name.split(' ')[0]}</span>
                               </span>
                             ))}
@@ -810,9 +774,11 @@ export const BoardView: React.FC = () => {
                             )}
                           </div>
 
-                          {card.tags.length > 0 && (
+                          {card.tags.filter((t) => t.toLowerCase() !== 'ticket').length > 0 && (
                             <div className="card-tags">
-                              {card.tags.map((t) => (
+                              {card.tags
+                                .filter((t) => t.toLowerCase() !== 'ticket')
+                                .map((t) => (
                                 <span key={t} className="tag-pill">{t}</span>
                               ))}
                             </div>
@@ -822,12 +788,12 @@ export const BoardView: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <div className="card-assignee">
                                 <img src={getSafeAvatar(card.assignee?.avatar, card.assignee?.name)} alt={card.assignee?.name || 'Assignee'} className="mini-avatar" />
-                                <span>{card.assignee?.name || 'Unassigned'}</span>
+                                <span>{card.assignee?.name ? card.assignee.name.split(' ')[0] : 'Unassigned'}</span>
                               </div>
                               {card.assignee.id !== currentUser?.id && (
                                 <button
                                   type="button"
-                                  className="btn-claim"
+                                  className="btn-claim-subtle"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     claimBoardItem(card.id, card.version);
@@ -1333,7 +1299,7 @@ export const BoardView: React.FC = () => {
           align-items: center;
           justify-content: space-between;
           padding: 10px 18px;
-          background: rgba(18, 21, 31, 0.95);
+          background: var(--bg-subtle);
           border-top: 1px solid var(--border-subtle);
           border-bottom-left-radius: 11px;
           border-bottom-right-radius: 11px;
@@ -1393,16 +1359,32 @@ export const BoardView: React.FC = () => {
           font-weight: 700;
         }
 
+        .btn-claim-subtle {
+          font-size: 10px;
+          font-weight: 600;
+          color: var(--text-muted);
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid var(--border-subtle);
+          padding: 2px 7px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+        }
+        .btn-claim-subtle:hover {
+          color: var(--primary);
+          background: rgba(62, 207, 142, 0.1);
+          border-color: rgba(62, 207, 142, 0.3);
+        }
+
         .board-summary-footer {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 14px 20px;
-          border-radius: 12px;
-          background: rgba(18, 21, 31, 0.95);
-          border: 1px solid var(--border-default);
-          box-shadow: var(--shadow-md);
-          margin-top: 16px;
+          padding: 10px 18px;
+          border-radius: 10px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          margin-top: 14px;
         }
 
         .board-summary-left {

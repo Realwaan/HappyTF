@@ -48,7 +48,8 @@ export const ItemDetailPanel: React.FC = () => {
     claimBoardItem,
     currentUser,
     members,
-    gitHubCommits
+    gitHubCommits,
+    recentBoards
   } = useApp();
 
   const [title, setTitle] = useState('');
@@ -208,9 +209,11 @@ export const ItemDetailPanel: React.FC = () => {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               v{selectedItem.version || 1} · Synced
             </span>
-            <span className="group-crumb" style={{ color: currentGroup?.color }}>
-              • {currentGroup?.name || 'Group'}
-            </span>
+            {(currentGroup?.name || recentBoards.find((b) => b.id === (selectedItem as any).board_id)?.name) && (
+              <span className="group-crumb" style={{ color: currentGroup?.color || 'var(--text-muted)' }}>
+                • {currentGroup?.name || recentBoards.find((b) => b.id === (selectedItem as any).board_id)?.name}
+              </span>
+            )}
           </div>
 
           <div className="header-nav-actions">
@@ -510,24 +513,24 @@ export const ItemDetailPanel: React.FC = () => {
             </div>
 
             {/* Integration Source Property */}
-            <div className="property-row">
-              <span className="property-label">Channel Source</span>
-              <div className="property-value">
-                {selectedItem.external_source === 'slack' || selectedItem.slack_channel_id ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-[#4A154B]/30 text-[#ECB22E] border border-[#E01E5A]/30">
-                    <MessageSquare size={12} className="text-[#ECB22E]" />
-                    <span>{selectedItem.slack_channel_id || '#triage'} (Slack Thread Sync)</span>
-                  </span>
-                ) : selectedItem.external_source === 'monday' ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-blue-500/15 text-blue-400 border border-blue-500/30">
-                    <Kanban size={12} className="text-blue-400" />
-                    <span>Monday.com Board Pulse</span>
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-400 font-mono">Web OS Direct</span>
-                )}
+            {(selectedItem.external_source === 'slack' || selectedItem.slack_channel_id || selectedItem.external_source === 'monday') && (
+              <div className="property-row">
+                <span className="property-label">Channel Source</span>
+                <div className="property-value">
+                  {selectedItem.external_source === 'slack' || selectedItem.slack_channel_id ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-[#4A154B]/30 text-[#ECB22E] border border-[#E01E5A]/30">
+                      <MessageSquare size={12} className="text-[#ECB22E]" />
+                      <span>{selectedItem.slack_channel_id || '#triage'} (Slack Thread Sync)</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                      <Kanban size={12} className="text-blue-400" />
+                      <span>Monday.com Board Pulse</span>
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Tags Property */}
             <div className="property-row">

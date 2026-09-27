@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cacheDelete } from '@/lib/redis';
+import { z } from 'zod';
+import { cacheDelete, checkRateLimit } from '@/lib/redis';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+
+const ClaimPayloadSchema = z.object({
+  user: z.object({
+    id: z.string().min(1, 'User ID is required'),
+    name: z.string().min(1, 'User name is required'),
+    avatar: z.string().optional(),
+  }),
+  if_version: z.number().int().optional(),
+  board_id: z.string().optional(),
+});
 
 export async function POST(
   request: NextRequest,
@@ -11,12 +22,45 @@ export async function POST(
     return NextResponse.json({ error: 'Ticket ID is required' }, { status: 400 });
   }
 
-  try {
-    const body = await request.json();
-    const { user, if_version, board_id } = body;
+  // 1. Rate limiting on claim endpoint
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
+  const rateLimit = await checkRateLimit(`ratelimit:ticket_claim:${ip}`, 30, 60);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many claim attempts. Please wait.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetInSeconds) } }
+    );
+  }
 
-    if (!user || !user.id || !user.name) {
-      return NextResponse.json({ error: 'User info is required to claim a ticket' }, { status: 400 });
+  try {
+    const rawBody = await request.json();
+    const parseResult = ClaimPayloadSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Invalid claim payload', details: parseResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    let { user, if_version, board_id } = parseResult.data;
+
+    // 2. Server-side session verification if Authorization header present
+    const authHeader = request.headers.get('authorization');
+    if (isSupabaseConfigured() && authHeader?.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const supabase = createClient();
+        const { data: { user: sessionUser } } = await supabase.auth.getUser(token);
+        if (sessionUser) {
+          user = {
+            id: sessionUser.id,
+            name: sessionUser.user_metadata?.full_name || sessionUser.email || user.name,
+            avatar: sessionUser.user_metadata?.avatar_url || user.avatar,
+          };
+        }
+      } catch (authErr) {
+        console.warn('[Claim Auth Session Verify Failed]', authErr);
+      }
     }
 
     if (isSupabaseConfigured()) {

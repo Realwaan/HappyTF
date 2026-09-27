@@ -156,7 +156,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
             <span className="cta-label font-semibold">
               {activeView === 'board' ? 'New Issue' : 'New Board'}
             </span>
-            <kbd className="topbar-cta-kbd font-mono">{activeView === 'board' ? 'C' : 'B'}</kbd>
           </button>
 
           {/* Quick Invite Button */}

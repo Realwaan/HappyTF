@@ -120,6 +120,13 @@ export function buildSlackTicketBlocks(ticket: SlackTicketPayload, siteUrl: stri
   };
 }
 
+const SLACK_WEBHOOK_PATTERN = /^https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9_\-\/]+$/;
+
+export function isValidSlackWebhookUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  return SLACK_WEBHOOK_PATTERN.test(url);
+}
+
 /**
  * Dispatch Slack webhook notification
  */
@@ -127,12 +134,13 @@ export async function dispatchSlackNotification(payload: SlackTicketPayload): Pr
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://happytf.work';
 
-  if (!webhookUrl) {
-    // If not configured, log for local development audit
-    console.log('[Slack Dispatch - Demo Mode]', {
+  if (!webhookUrl || !isValidSlackWebhookUrl(webhookUrl)) {
+    // If not configured or invalid, log for local development audit and prevent SSRF
+    console.log('[Slack Dispatch - Demo Mode / SSRF Guarded]', {
       ticket: payload.ticketNumber,
       title: payload.title,
       priority: payload.priority,
+      validUrl: Boolean(webhookUrl && isValidSlackWebhookUrl(webhookUrl)),
     });
     return { success: true };
   }
@@ -163,7 +171,7 @@ export async function dispatchSlackNotification(payload: SlackTicketPayload): Pr
  */
 export async function dispatchSlackStatusChange(payload: SlackStatusChangePayload): Promise<void> {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-  if (!webhookUrl) return;
+  if (!webhookUrl || !isValidSlackWebhookUrl(webhookUrl)) return;
 
   const statusEmoji = payload.newStatus === 'Done' ? '🎉' : payload.newStatus === 'Stuck' ? '🚨' : '🔄';
 

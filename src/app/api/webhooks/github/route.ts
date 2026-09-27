@@ -23,20 +23,29 @@ export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text();
     const signature = request.headers.get('x-hub-signature-256');
+    const payload = JSON.parse(rawBody || '{}');
     const secret = process.env.GITHUB_WEBHOOK_SECRET;
 
-    // Optional HMAC validation if secret is configured
-    if (secret && signature && !rawBody.includes('"simulate":true')) {
+    // 1. Simulation support strictly disabled in production
+    if (payload.simulate) {
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json({ error: 'Simulation is disabled in production environments' }, { status: 403 });
+      }
+    } else if (secret) {
+      // In production or when secret configured, enforce HMAC validation
+      if (!signature) {
+        return NextResponse.json({ error: 'Missing HMAC signature' }, { status: 401 });
+      }
       const hmac = crypto.createHmac('sha256', secret);
       const digest = 'sha256=' + hmac.update(rawBody).digest('hex');
       if (signature !== digest) {
         return NextResponse.json({ error: 'Invalid HMAC signature' }, { status: 401 });
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'GitHub webhook secret not configured' }, { status: 500 });
     }
 
-    const payload = JSON.parse(rawBody || '{}');
-
-    // 1. Simulation support for local developer workflow
+    // 2. Local simulation handler for dev/test
     if (payload.simulate) {
       const simCommit: GitHubCommit = payload.commit || {
         id: Math.random().toString(16).slice(2, 9),

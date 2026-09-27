@@ -1,0 +1,8 @@
+Contact: mailto:security@happytf.dev
+Expires: 2027-12-31T23:59:59.000Z
+Encryption: https://happytf.dev/pgp-key.txt
+Preferred-Languages: en
+Canonical: https://happytf.dev/.well-known/security.txt
+Policy: https://happytf.dev/security-policy
+Hiring: https://happytf.dev/careers
+Acknowledgments: https://happytf.dev/hall-of-fame
