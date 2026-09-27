@@ -242,6 +242,220 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateBoardItemRef = useRef<((itemId: string, updates: Partial<BoardItem>, ifVersion?: number) => { success: boolean; error?: string }) | null>(null);
   const isItemsMapLoadedRef = useRef(false);
 
+  const isWorkspaceStorageLoadedRef = useRef(false);
+
+  // Load workspace hierarchy, folders, boards, groups, and user from localStorage after hydration
+  useEffect(() => {
+    let isCancelled = false;
+    const loadWorkspaceHierarchy = async () => {
+      try {
+        // 1. Workspaces
+        const savedWs = localStorage.getItem('happytf_workspaces');
+        let loadedWorkspaces: Workspace[] = [];
+        if (savedWs) {
+          const decrypted = await decryptAtRest(savedWs).catch(() => savedWs);
+          const parsed = JSON.parse(decrypted);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            loadedWorkspaces = parsed;
+            if (!isCancelled) {
+              setWorkspaces(parsed);
+            }
+          }
+        }
+
+        // 2. Current Workspace ID
+        const savedCurWsId = localStorage.getItem('happytf_current_workspace_id');
+        if (loadedWorkspaces.length > 0 && !isCancelled) {
+          const matched = savedCurWsId ? loadedWorkspaces.find((w) => w.id === savedCurWsId) : null;
+          setCurrentWorkspace(matched || loadedWorkspaces[0]);
+        }
+
+        // 3. Folders
+        const savedFolders = localStorage.getItem('happytf_folders');
+        if (savedFolders) {
+          const decrypted = await decryptAtRest(savedFolders).catch(() => savedFolders);
+          const parsed = JSON.parse(decrypted);
+          if (parsed && typeof parsed === 'object' && !isCancelled) {
+            setFoldersMap((prev) => ({ ...prev, ...parsed }));
+          }
+        }
+
+        // 4. Boards
+        const savedBoards = localStorage.getItem('happytf_boards');
+        if (savedBoards) {
+          const decrypted = await decryptAtRest(savedBoards).catch(() => savedBoards);
+          const parsed = JSON.parse(decrypted);
+          if (parsed && typeof parsed === 'object' && !isCancelled) {
+            setBoardsMap((prev) => ({ ...prev, ...parsed }));
+          }
+        }
+
+        // 5. Board Groups
+        const savedGroups = localStorage.getItem('happytf_board_groups');
+        if (savedGroups) {
+          const decrypted = await decryptAtRest(savedGroups).catch(() => savedGroups);
+          const parsed = JSON.parse(decrypted);
+          if (parsed && typeof parsed === 'object' && !isCancelled) {
+            setGroupsMap((prev) => ({ ...prev, ...parsed }));
+          }
+        }
+
+        // 6. Members
+        const savedMembers = localStorage.getItem('happytf_members');
+        if (savedMembers) {
+          const decrypted = await decryptAtRest(savedMembers).catch(() => savedMembers);
+          const parsed = JSON.parse(decrypted);
+          if (parsed && typeof parsed === 'object' && !isCancelled) {
+            setMembersMap((prev) => ({ ...prev, ...parsed }));
+          }
+        }
+
+        // 7. User Profile
+        const savedUser = localStorage.getItem('happytf_user');
+        if (savedUser) {
+          const decrypted = await decryptAtRest(savedUser).catch(() => savedUser);
+          const parsed = JSON.parse(decrypted);
+          if (parsed && typeof parsed === 'object' && parsed.id && !isCancelled) {
+            setCurrentUser((prev) => prev || parsed);
+          }
+        }
+
+        // 8. Active Board & View
+        const savedActiveBoard = localStorage.getItem('happytf_active_board_id');
+        const savedActiveView = localStorage.getItem('happytf_active_view') as 'home' | 'board' | null;
+        if (savedActiveBoard && !isCancelled) {
+          setActiveBoardId(savedActiveBoard);
+        }
+        if (savedActiveView && !isCancelled) {
+          setActiveView(savedActiveView);
+        }
+      } catch (err) {
+        console.warn('Failed to load workspace hierarchy from localStorage', err);
+      } finally {
+        if (!isCancelled) {
+          isWorkspaceStorageLoadedRef.current = true;
+        }
+      }
+    };
+
+    loadWorkspaceHierarchy();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  // Persist workspaces & current workspace ID to localStorage
+  useEffect(() => {
+    if (!isWorkspaceStorageLoadedRef.current) return;
+    const save = async () => {
+      try {
+        const payload = JSON.stringify(workspaces);
+        const encrypted = await encryptAtRest(payload);
+        localStorage.setItem('happytf_workspaces', encrypted);
+        if (currentWorkspace?.id) {
+          localStorage.setItem('happytf_current_workspace_id', currentWorkspace.id);
+        }
+      } catch (err) {
+        console.warn('Failed to save workspaces to localStorage', err);
+      }
+    };
+    save();
+  }, [workspaces, currentWorkspace]);
+
+  // Persist foldersMap to localStorage
+  useEffect(() => {
+    if (!isWorkspaceStorageLoadedRef.current) return;
+    const save = async () => {
+      try {
+        const payload = JSON.stringify(foldersMap);
+        const encrypted = await encryptAtRest(payload);
+        localStorage.setItem('happytf_folders', encrypted);
+      } catch (err) {
+        console.warn('Failed to save folders to localStorage', err);
+      }
+    };
+    save();
+  }, [foldersMap]);
+
+  // Persist boardsMap to localStorage
+  useEffect(() => {
+    if (!isWorkspaceStorageLoadedRef.current) return;
+    const save = async () => {
+      try {
+        const payload = JSON.stringify(boardsMap);
+        const encrypted = await encryptAtRest(payload);
+        localStorage.setItem('happytf_boards', encrypted);
+      } catch (err) {
+        console.warn('Failed to save boards to localStorage', err);
+      }
+    };
+    save();
+  }, [boardsMap]);
+
+  // Persist groupsMap to localStorage
+  useEffect(() => {
+    if (!isWorkspaceStorageLoadedRef.current) return;
+    const save = async () => {
+      try {
+        const payload = JSON.stringify(groupsMap);
+        const encrypted = await encryptAtRest(payload);
+        localStorage.setItem('happytf_board_groups', encrypted);
+      } catch (err) {
+        console.warn('Failed to save groups to localStorage', err);
+      }
+    };
+    save();
+  }, [groupsMap]);
+
+  // Persist membersMap to localStorage
+  useEffect(() => {
+    if (!isWorkspaceStorageLoadedRef.current) return;
+    const save = async () => {
+      try {
+        const payload = JSON.stringify(membersMap);
+        const encrypted = await encryptAtRest(payload);
+        localStorage.setItem('happytf_members', encrypted);
+      } catch (err) {
+        console.warn('Failed to save members to localStorage', err);
+      }
+    };
+    save();
+  }, [membersMap]);
+
+  // Persist currentUser to localStorage
+  useEffect(() => {
+    if (!isWorkspaceStorageLoadedRef.current) return;
+    if (!currentUser) {
+      try {
+        localStorage.removeItem('happytf_user');
+      } catch {}
+      return;
+    }
+    const save = async () => {
+      try {
+        const payload = JSON.stringify(currentUser);
+        const encrypted = await encryptAtRest(payload);
+        localStorage.setItem('happytf_user', encrypted);
+      } catch (err) {
+        console.warn('Failed to save user to localStorage', err);
+      }
+    };
+    save();
+  }, [currentUser]);
+
+  // Persist active view & active board
+  useEffect(() => {
+    if (!isWorkspaceStorageLoadedRef.current) return;
+    try {
+      if (activeBoardId) {
+        localStorage.setItem('happytf_active_board_id', activeBoardId);
+      } else {
+        localStorage.removeItem('happytf_active_board_id');
+      }
+      localStorage.setItem('happytf_active_view', activeView);
+    } catch {}
+  }, [activeBoardId, activeView]);
+
   // Load itemsMap from localStorage after hydration on mount (encrypted at rest)
   useEffect(() => {
     let isCancelled = false;
@@ -507,9 +721,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
           syncUserWorkspaces(u.id);
         } else if (isDeployed()) {
-          setCurrentUser(null);
-          setWorkspaces([]);
-          setCurrentWorkspace(null);
+          // If no active Supabase OAuth session, keep local workspaces and folders intact
         }
       });
 
@@ -527,9 +739,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
           syncUserWorkspaces(u.id);
         } else if (isDeployed()) {
-          setCurrentUser(null);
-          setWorkspaces([]);
-          setCurrentWorkspace(null);
+          // If auth state changes to signed out, retain local workspace hierarchy
         }
       });
 
@@ -1552,6 +1762,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
     }
     setCurrentUser(null);
+    try {
+      localStorage.removeItem('happytf_user');
+    } catch {}
   };
 
   const switchWorkspace = (workspaceId: string) => {
