@@ -63,6 +63,7 @@ interface AppContextType {
   isWorkspaceSettingsOpen: boolean;
   isShortcutsModalOpen: boolean;
   isContextModalOpen: boolean;
+  isDiscordModalOpen: boolean;
   isSlackModalOpen: boolean;
   isTeamChatOpen: boolean;
   setTeamChatOpen: (open: boolean) => void;
@@ -154,6 +155,7 @@ interface AppContextType {
   setWorkspaceSettingsOpen: (open: boolean, tab?: 'general' | 'members' | 'roles' | 'danger') => void;
   setShortcutsModalOpen: (open: boolean) => void;
   setContextModalOpen: (open: boolean) => void;
+  setDiscordModalOpen: (open: boolean) => void;
   setSlackModalOpen: (open: boolean) => void;
   markAllNotificationsAsRead: () => void;
   markNotificationRead: (id: string) => void;
@@ -198,6 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isWorkspaceSettingsOpen, setIsWorkspaceSettingsOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
+  const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
   const [isSlackModalOpen, setIsSlackModalOpen] = useState(false);
   const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
   const [activeTeamChannelId, setActiveTeamChannelId] = useState('general');
@@ -877,6 +880,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsWorkspaceSettingsOpen(false);
         setIsShortcutsModalOpen(false);
         setIsContextModalOpen(false);
+        setIsDiscordModalOpen(false);
         setIsSlackModalOpen(false);
         setIsGitHubFeedOpen(false);
         setSelectedItem(null);
@@ -2708,8 +2712,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setWorkspaceSettingsOpen,
         setShortcutsModalOpen: setIsShortcutsModalOpen,
         setContextModalOpen: setIsContextModalOpen,
-        isSlackModalOpen,
-        setSlackModalOpen: setIsSlackModalOpen,
+        isDiscordModalOpen,
+        setDiscordModalOpen: setIsDiscordModalOpen,
+        isSlackModalOpen: isDiscordModalOpen,
+        setSlackModalOpen: setIsDiscordModalOpen,
         isTeamChatOpen,
         setTeamChatOpen: setIsTeamChatOpen,
         activeTeamChannelId,

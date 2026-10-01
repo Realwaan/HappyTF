@@ -33,7 +33,8 @@ import {
   UserPlus,
   Users,
   Radio,
-  X
+  X,
+  Bot
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
 import { useRealtimeTickets } from '../../lib/supabase/useRealtimeTickets';
@@ -63,7 +64,7 @@ export const BoardView: React.FC = () => {
     updateBoardItem, 
     toggleGroupCollapse, 
     navigateToHome,
-    setSlackModalOpen,
+    setDiscordModalOpen,
     gitHubCommits,
     toggleGitHubFeed,
     claimBoardItem,
@@ -327,25 +328,25 @@ export const BoardView: React.FC = () => {
   };
 
   const renderSourceBadge = (item: BoardItem) => {
-    if (item.external_source === 'slack' || item.slack_channel_id) {
+    if (item.external_source === 'discord' || item.discord_thread_id || item.discord_channel_id) {
       return (
         <span 
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#4A154B]/30 text-[#ECB22E] border border-[#E01E5A]/30"
-          title={`Synced via Slack: ${item.slack_channel_id || '#triage'}`}
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#5865F2]/20 text-[#8ea1e1] border border-[#5865F2]/40"
+          title={`CapStoneFlow Thread: ${item.discord_channel_id || 'active'}`}
         >
-          <MessageSquare size={10} className="text-[#ECB22E]" />
-          <span>{item.slack_channel_id || 'Slack'}</span>
+          <Bot size={11} className="text-[#5865F2]" />
+          <span>{item.discord_channel_id ? `#${item.discord_channel_id}` : 'Discord'}</span>
         </span>
       );
     }
-    if (item.external_source === 'monday' || item.monday_item_id) {
+    if (item.external_source === 'slack' || item.slack_channel_id) {
       return (
         <span 
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30"
-          title="Synced via Monday.com webhook"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#5865F2]/20 text-[#8ea1e1] border border-[#5865F2]/40"
+          title="Synced via Discord Bot"
         >
-          <Kanban size={10} className="text-blue-400" />
-          <span>Monday</span>
+          <Bot size={11} className="text-[#5865F2]" />
+          <span>Discord</span>
         </span>
       );
     }
@@ -403,14 +404,14 @@ export const BoardView: React.FC = () => {
             </button>
 
             <button
-              id="open-slack-integration-btn"
+              id="open-discord-integration-btn"
               type="button"
               className="btn btn-secondary btn-sm flex items-center gap-1.5 text-xs font-medium cursor-pointer"
-              onClick={() => setSlackModalOpen(true)}
-              title="Configure Slack webhooks and alerts"
+              onClick={() => setDiscordModalOpen(true)}
+              title="Configure CapStoneFlow Discord Bot and slash commands"
             >
-              <MessageSquare size={13} className="text-indigo-400" />
-              <span>Slack</span>
+              <Bot size={13} className="text-[#5865F2]" />
+              <span>CapStoneFlow Bot</span>
             </button>
 
             {/* Realtime Active Collaborators Avatar Stack */}

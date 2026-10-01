@@ -14,7 +14,7 @@ import { CreateBoardModal } from '../board/CreateBoardModal';
 import { QuickCreateTaskModal } from '../board/QuickCreateTaskModal';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { WorkspaceContextModal } from './WorkspaceContextModal';
-import { SlackIntegrationModal } from '../workspace/SlackIntegrationModal';
+import { DiscordIntegrationModal } from '../workspace/DiscordIntegrationModal';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -29,8 +29,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     setQuickTaskOpen,
     isContextModalOpen,
     setContextModalOpen,
-    isSlackModalOpen,
-    setSlackModalOpen,
+    isDiscordModalOpen,
+    setDiscordModalOpen,
     navigateToBoard,
     joinBoard,
   } = useApp();
@@ -98,9 +98,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         isOpen={isContextModalOpen}
         onClose={() => setContextModalOpen(false)}
       />
-      <SlackIntegrationModal
-        isOpen={isSlackModalOpen}
-        onClose={() => setSlackModalOpen(false)}
+      <DiscordIntegrationModal
+        isOpen={isDiscordModalOpen}
+        onClose={() => setDiscordModalOpen(false)}
       />
 
       <style jsx>{`

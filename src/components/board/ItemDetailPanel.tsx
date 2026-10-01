@@ -29,7 +29,8 @@ import {
   FileText,
   Kanban,
   GitCommit,
-  ShieldCheck
+  ShieldCheck,
+  Bot
 } from 'lucide-react';
 import { BoardItem, SubTask } from '../../types';
 import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
@@ -514,21 +515,14 @@ export const ItemDetailPanel: React.FC = () => {
             </div>
 
             {/* Integration Source Property */}
-            {(selectedItem.external_source === 'slack' || selectedItem.slack_channel_id || selectedItem.external_source === 'monday') && (
+            {(selectedItem.external_source === 'discord' || selectedItem.discord_thread_id || selectedItem.discord_channel_id || selectedItem.external_source === 'slack' || selectedItem.slack_channel_id) && (
               <div className="property-row">
                 <span className="property-label">Channel Source</span>
                 <div className="property-value">
-                  {selectedItem.external_source === 'slack' || selectedItem.slack_channel_id ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-[#4A154B]/30 text-[#ECB22E] border border-[#E01E5A]/30">
-                      <MessageSquare size={12} className="text-[#ECB22E]" />
-                      <span>{selectedItem.slack_channel_id || '#triage'} (Slack Thread Sync)</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-blue-500/15 text-blue-400 border border-blue-500/30">
-                      <Kanban size={12} className="text-blue-400" />
-                      <span>Monday.com Board Pulse</span>
-                    </span>
-                  )}
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-[#5865F2]/20 text-[#8ea1e1] border border-[#5865F2]/40">
+                    <Bot size={12} className="text-[#5865F2]" />
+                    <span>{selectedItem.discord_channel_id ? `#${selectedItem.discord_channel_id}` : 'CapStoneFlow Discord Thread'}</span>
+                  </span>
                 </div>
               </div>
             )}

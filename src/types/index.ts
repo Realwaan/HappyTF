@@ -188,15 +188,50 @@ export interface SubTask {
 export interface WorkspaceIntegration {
   id: string;
   workspace_id: string;
-  provider: 'slack' | 'monday' | 'custom_webhook';
+  provider: 'discord' | 'slack' | 'monday' | 'custom_webhook';
   webhook_url?: string;
   bot_token?: string;
+  client_id?: string;
+  guild_id?: string;
   default_channel_id?: string;
+  reminders_channel_id?: string;
   notify_on_urgent: boolean;
   notify_on_status_change: boolean;
   is_active: boolean;
   created_at: string;
   updated_at?: string;
+}
+
+export interface DiscordWorkspaceConfig {
+  workspace_id: string;
+  bot_token?: string;
+  client_id?: string;
+  public_key?: string;
+  guild_id?: string;
+  tickets_channel_id?: string;
+  reminders_channel_id?: string;
+  webhook_url?: string;
+  is_active: boolean;
+  bot_name?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DiscordUserRoleMapping {
+  discord_user_id: string;
+  discord_username: string;
+  role: 'Developer' | 'QA' | 'PM';
+  workspace_user_id?: string;
+  updated_at: string;
+}
+
+export interface CapStoneFlowCommand {
+  name: string;
+  description: string;
+  roleRequirement?: 'Developer' | 'QA' | 'PM' | 'Team';
+  usageScope: 'thread' | 'channel' | 'any';
+  category: 'lifecycle' | 'management' | 'scanning' | 'workflow' | 'utility';
+  example?: string;
 }
 
 export interface BoardItem {
@@ -225,7 +260,14 @@ export interface BoardItem {
   description?: string;
   activities: ItemActivity[];
   comments: ItemComment[];
-  external_source?: 'web' | 'slack' | 'monday' | 'email';
+  external_source?: 'web' | 'discord' | 'slack' | 'monday' | 'email';
+  discord_channel_id?: string;
+  discord_thread_id?: string;
+  discord_message_id?: string;
+  qa_reviewed_by?: string;
+  qa_reviewed_at?: string;
+  workflow_step?: number;
+  workflow_id?: string;
   slack_channel_id?: string;
   slack_thread_ts?: string;
   monday_item_id?: string;
