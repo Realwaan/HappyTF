@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { BoardItem, SubTask } from '../../types';
 import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
+import { TaskCommentSection } from './TaskCommentSection';
 
 export const ItemDetailPanel: React.FC = () => {
   const { 
@@ -42,8 +43,6 @@ export const ItemDetailPanel: React.FC = () => {
     selectPrevItem, 
     updateBoardItem, 
     deleteBoardItem, 
-    addItemComment, 
-    toggleCommentReaction,
     boardGroups,
     activeBoard,
     claimBoardItem,
@@ -55,7 +54,6 @@ export const ItemDetailPanel: React.FC = () => {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [newComment, setNewComment] = useState('');
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const [isSeverityOpen, setIsSeverityOpen] = useState(false);
@@ -184,13 +182,6 @@ export const ItemDetailPanel: React.FC = () => {
     if (selectedItem && description !== selectedItem.description) {
       updateBoardItem(selectedItem.id, { description });
     }
-  };
-
-  const handleCommentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
-    addItemComment(selectedItem.id, newComment.trim());
-    setNewComment('');
   };
 
   return (
@@ -705,157 +696,13 @@ export const ItemDetailPanel: React.FC = () => {
 
           <div className="drawer-divider" />
 
-          {/* Updates & Comments Feed */}
-          <div className="section-block">
-            <div className="feed-header">
-              <div className="flex items-center gap-2">
-                <MessageSquare size={16} className="text-primary" />
-                <h4 className="section-heading mb-0">Team Updates & Discussion</h4>
-              </div>
-              <span className="text-xs text-muted font-mono">{selectedItem.comments.length} updates</span>
-            </div>
-
-            {/* Comment Form */}
-            <form onSubmit={handleCommentSubmit} className="comment-form" id="detail-comment-form">
-              <input
-                id="detail-comment-input"
-                type="text"
-                className="input-field comment-input"
-                placeholder="Write an update, @mention a teammate, or drop notes..."
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-              />
-              <button
-                id="detail-comment-submit-btn"
-                type="submit"
-                className="btn btn-primary btn-sm"
-                disabled={!newComment.trim()}
-              >
-                <Send size={13} />
-                <span>Post</span>
-              </button>
-            </form>
-
-            {/* Comments List */}
-            <div className="comments-list" id="detail-comments-list">
-              {selectedItem.comments.length === 0 ? (
-                <div className="empty-feed-hint">
-                  <p>No comments yet. Start the conversation with your team!</p>
-                </div>
-              ) : (
-                selectedItem.comments.map((comm) => (
-                  <div key={comm.id} className="comment-card" id={`comment-${comm.id}`}>
-                    <div className="comment-top">
-                      <img 
-                        src={getSafeAvatar(comm.author_avatar, comm.author_name)} 
-                        alt={comm.author_name} 
-                        className="comment-avatar"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = getSafeAvatar(null, comm.author_name);
-                        }}
-                      />
-                      <div className="comment-meta">
-                        <span className="author-name font-semibold">{comm.author_name}</span>
-                        <span 
-                          className="timestamp font-mono text-xs cursor-default" 
-                          title={formatFullDateTime(comm.created_at || comm.timestamp, comm.id)}
-                        >
-                          {formatRelativeTime(comm.created_at || comm.timestamp, comm.id)}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="comment-text">{comm.content}</p>
-
-                    {/* Emoji Reactions */}
-                    <div className="reactions-row">
-                      {comm.reactions.map((r) => (
-                        <button
-                          key={r.emoji}
-                          type="button"
-                          className="reaction-pill"
-                          onClick={() => toggleCommentReaction(selectedItem.id, comm.id, r.emoji)}
-                        >
-                          <span>{r.emoji}</span>
-                          <span className="reaction-count font-mono">{r.count}</span>
-                        </button>
-                      ))}
-                      <div className="reaction-pickers">
-                        {['👍', '❤️', '🚀', '👀'].map((em) => (
-                          <button
-                            key={em}
-                            type="button"
-                            className="mini-emoji-btn"
-                            onClick={() => toggleCommentReaction(selectedItem.id, comm.id, em)}
-                          >
-                            {em}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="drawer-divider" />
-
-          {/* Activity Timeline & Linked Commits */}
-          <div className="section-block">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <History size={16} className="text-muted" />
-                <h4 className="section-heading mb-0">Activity History</h4>
-              </div>
-              {gitHubCommits.some((c) => c.linked_ticket_number && c.linked_ticket_number.toUpperCase() === (selectedItem.ticket_number || '').toUpperCase()) && (
-                <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1">
-                  <GitCommit size={12} /> Linked Commits
-                </span>
-              )}
-            </div>
-
-            {/* Linked GitHub Commits for this ticket */}
-            {gitHubCommits
-              .filter((c) => c.linked_ticket_number && c.linked_ticket_number.toUpperCase() === (selectedItem.ticket_number || '').toUpperCase())
-              .map((commit) => (
-                <div key={commit.id} className="p-2.5 mb-2.5 rounded-lg bg-emerald-500/[0.04] border border-emerald-500/20 flex flex-col gap-1 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-emerald-400 flex items-center gap-1">
-                      <GitCommit size={13} /> {commit.id}
-                    </span>
-                    <span 
-                      className="text-[10px] font-mono text-slate-400 cursor-default" 
-                      title={formatFullDateTime(commit.timestamp, commit.id)}
-                    >
-                      {formatRelativeTime(commit.timestamp, commit.id)}
-                    </span>
-                  </div>
-                  <p className="text-slate-200 text-xs">{commit.message}</p>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 font-mono">
-                    <span>by {commit.author.name} on {commit.branch}</span>
-                    <a href={commit.url} target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline">View Commit &rarr;</a>
-                  </div>
-                </div>
-              ))}
-
-            <div className="activity-timeline">
-              {selectedItem.activities.map((act) => (
-                <div key={act.id} className="activity-row">
-                  <div className="activity-dot" />
-                  <div className="activity-details">
-                    <span className="act-author font-semibold">{act.author_name}</span>
-                    <span className="act-action">{act.action}</span>
-                    <span 
-                      className="act-time font-mono text-xs text-muted cursor-default" 
-                      title={formatFullDateTime(act.created_at || act.timestamp, act.id)}
-                    >
-                      {formatRelativeTime(act.created_at || act.timestamp, act.id)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Unified Task Discussion, Feed & Commit Stream */}
+          <TaskCommentSection 
+            item={selectedItem} 
+            linkedCommits={gitHubCommits.filter(
+              (c) => c.linked_ticket_number && c.linked_ticket_number.toUpperCase() === (selectedItem.ticket_number || '').toUpperCase()
+            )} 
+          />
         </div>
 
         {/* 3. Footer Actions */}

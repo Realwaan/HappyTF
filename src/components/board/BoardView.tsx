@@ -151,6 +151,8 @@ export const BoardView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [newRowTitle, setNewRowTitle] = useState<Record<string, string>>({});
   const [activeInlineStatusId, setActiveInlineStatusId] = useState<string | null>(null);
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [expandedSubItems, setExpandedSubItems] = useState<Record<string, boolean>>(
     isDeployed() ? {} : { 'item-tk-1': true }
   );
@@ -819,9 +821,37 @@ export const BoardView: React.FC = () => {
           <div className="kanban-view" id="board-kanban-view">
             {statusOptions.map((st) => {
               const cards = filteredItems.filter((i) => i.status === st.label);
+              const isOverThisCol = dragOverCol === st.label;
 
               return (
-                <div key={st.label} className="kanban-column glass-panel" id={`kanban-col-${st.className}`}>
+                <div 
+                  key={st.label} 
+                  className={`kanban-column glass-panel ${isOverThisCol ? 'col-drag-over' : ''}`} 
+                  id={`kanban-col-${st.className}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverCol !== st.label) {
+                      setDragOverCol(st.label);
+                    }
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      if (dragOverCol === st.label) {
+                        setDragOverCol(null);
+                      }
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverCol(null);
+                    const droppedCardId = e.dataTransfer.getData('text/plain') || draggingCardId;
+                    if (!droppedCardId) return;
+                    const targetCard = filteredItems.find((i) => i.id === droppedCardId);
+                    if (!targetCard || targetCard.status === st.label) return;
+                    updateBoardItem(targetCard.id, { status: st.label, status_color: st.color }, targetCard.version);
+                  }}
+                >
                   {/* Column Header */}
                   <div className="kanban-col-header">
                     <div className="col-title-left">
@@ -837,12 +867,23 @@ export const BoardView: React.FC = () => {
                       const ticketNumber = card.ticket_number || `#TK-${card.id.replace('item-', '').padStart(3, '0')}`;
                       const subtaskCount = card.subtasks?.length || 0;
                       const completedSubtasks = card.subtasks?.filter((s) => s.completed).length || 0;
+                      const isThisDragging = draggingCardId === card.id;
 
                       return (
                         <div
                           key={card.id}
-                          className="kanban-card glass-panel"
+                          className={`kanban-card glass-panel ${isThisDragging ? 'is-dragging' : ''}`}
                           id={`kanban-card-${card.id}`}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', card.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                            setDraggingCardId(card.id);
+                          }}
+                          onDragEnd={() => {
+                            setDraggingCardId(null);
+                            setDragOverCol(null);
+                          }}
                           onClick={() => openItemDetail(card)}
                         >
                           <div className="card-top flex items-center justify-between gap-2">
@@ -921,8 +962,8 @@ export const BoardView: React.FC = () => {
                     })}
 
                     {cards.length === 0 && (
-                      <div className="empty-kanban-slot">
-                        <span>No items in {st.label}</span>
+                      <div className={`empty-kanban-slot ${isOverThisCol ? 'empty-kanban-slot-active' : ''}`}>
+                        <span>{isOverThisCol ? 'Drop here to update status' : `No items in ${st.label}`}</span>
                       </div>
                     )}
                   </div>
@@ -1564,6 +1605,12 @@ export const BoardView: React.FC = () => {
           flex-direction: column;
           gap: 12px;
           min-height: 440px;
+          transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+        .kanban-column.col-drag-over {
+          border-color: var(--accent-primary, #6366f1);
+          background: rgba(99, 102, 241, 0.08);
+          box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25), 0 8px 24px rgba(0, 0, 0, 0.3);
         }
 
         .kanban-col-header {
@@ -1617,6 +1664,12 @@ export const BoardView: React.FC = () => {
           border-color: var(--border-highlight);
           box-shadow: var(--shadow-sm);
         }
+        .kanban-card.is-dragging {
+          opacity: 0.4;
+          transform: scale(0.97);
+          box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45);
+          cursor: grabbing;
+        }
 
         .card-top {
           display: flex;
@@ -1663,6 +1716,13 @@ export const BoardView: React.FC = () => {
           color: var(--text-muted);
           border: 1px dashed var(--border-subtle);
           border-radius: 8px;
+          transition: all var(--transition-fast);
+        }
+        .empty-kanban-slot.empty-kanban-slot-active {
+          border-color: var(--accent-primary, #6366f1);
+          background: rgba(99, 102, 241, 0.1);
+          color: var(--accent-primary, #6366f1);
+          font-weight: 600;
         }
 
         .board-not-found {

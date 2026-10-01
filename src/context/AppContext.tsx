@@ -127,6 +127,7 @@ interface AppContextType {
   claimBoardItem: (itemId: string, ifVersion?: number) => { success: boolean; error?: string };
   deleteBoardItem: (itemId: string) => void;
   addItemComment: (itemId: string, content: string) => void;
+  deleteItemComment: (itemId: string, commentId: string) => void;
   toggleCommentReaction: (itemId: string, commentId: string, emoji: string) => void;
   toggleGroupCollapse: (groupId: string) => void;
 
@@ -1942,6 +1943,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch((err) => console.warn('[Comments API] Failed to persist reaction', err));
   };
 
+  const deleteItemComment = (itemId: string, commentId: string) => {
+    const currentItem = selectedItemRef.current?.id === itemId 
+      ? selectedItemRef.current 
+      : (activeBoardId ? (itemsMap[activeBoardId] || []).find((i) => i.id === itemId) : null);
+    if (!currentItem) return;
+
+    const updatedComments = (currentItem.comments || []).filter((comm) => comm.id !== commentId);
+    updateBoardItem(itemId, { comments: updatedComments });
+
+    const updatedItem: BoardItem = {
+      ...currentItem,
+      comments: updatedComments,
+      version: (currentItem.version || 1) + 1,
+      updated_at: new Date().toISOString(),
+    };
+    if (selectedItemRef.current?.id === itemId) {
+      setSelectedItem(updatedItem);
+    }
+    if (ticketBroadcasterRef.current) {
+      ticketBroadcasterRef.current(updatedItem);
+    }
+
+    fetch('/api/tickets/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticket_id: itemId,
+        comments: updatedComments,
+      }),
+    }).catch((err) => console.warn('[Comments API] Failed to persist deleted comment', err));
+  };
+
   const toggleGroupCollapse = (groupId: string) => {
     if (!activeBoardId) return;
     setGroupsMap((prev) => ({
@@ -2649,6 +2682,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateBoardItem,
         deleteBoardItem,
         addItemComment,
+        deleteItemComment,
         toggleCommentReaction,
         toggleGroupCollapse,
         login,
