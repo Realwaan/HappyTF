@@ -107,6 +107,16 @@ interface AppContextType {
 
   // Actions
   navigateToBoard: (boardId: string) => void;
+  joinBoard: (
+    boardId: string,
+    options?: {
+      role?: string;
+      inviter?: string;
+      boardName?: string;
+      workspaceName?: string;
+      workspaceId?: string;
+    }
+  ) => Promise<boolean>;
   navigateToHome: () => void;
   openItemDetail: (itemOrId: BoardItem | string) => void;
   closeItemDetail: () => void;
@@ -286,7 +296,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const decrypted = await decryptAtRest(savedBoards).catch(() => savedBoards);
           const parsed = JSON.parse(decrypted);
           if (parsed && typeof parsed === 'object' && !isCancelled) {
-            setBoardsMap((prev) => ({ ...prev, ...parsed }));
+            setBoardsMap((prev) => {
+              const merged: Record<string, BoardSummary[]> = { ...parsed };
+              for (const [ws, list] of Object.entries(prev)) {
+                if (!merged[ws]) {
+                  merged[ws] = list;
+                } else {
+                  const existingIds = new Set(merged[ws].map((b) => b.id));
+                  const newFromPrev = list.filter((b) => !existingIds.has(b.id));
+                  merged[ws] = [...newFromPrev, ...merged[ws]];
+                }
+              }
+              return merged;
+            });
           }
         }
 
@@ -296,7 +318,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const decrypted = await decryptAtRest(savedGroups).catch(() => savedGroups);
           const parsed = JSON.parse(decrypted);
           if (parsed && typeof parsed === 'object' && !isCancelled) {
-            setGroupsMap((prev) => ({ ...prev, ...parsed }));
+            setGroupsMap((prev) => {
+              const merged: Record<string, BoardGroup[]> = { ...parsed };
+              for (const [bId, gList] of Object.entries(prev)) {
+                if (!merged[bId]) {
+                  merged[bId] = gList;
+                }
+              }
+              return merged;
+            });
           }
         }
 
@@ -320,14 +350,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
 
-        // 8. Active Board & View
-        const savedActiveBoard = localStorage.getItem('happytf_active_board_id');
-        const savedActiveView = localStorage.getItem('happytf_active_view') as 'home' | 'board' | null;
-        if (savedActiveBoard && !isCancelled) {
-          setActiveBoardId(savedActiveBoard);
-        }
-        if (savedActiveView && !isCancelled) {
-          setActiveView(savedActiveView);
+        // 8. Active Board & View (Ignore if visited with ?join_board= to preserve invite context)
+        const hasJoinBoardUrl = typeof window !== 'undefined' && window.location.search.includes('join_board');
+        if (!hasJoinBoardUrl) {
+          const savedActiveBoard = localStorage.getItem('happytf_active_board_id');
+          const savedActiveView = localStorage.getItem('happytf_active_view') as 'home' | 'board' | null;
+          if (savedActiveBoard && !isCancelled) {
+            setActiveBoardId(savedActiveBoard);
+          }
+          if (savedActiveView && !isCancelled) {
+            setActiveView(savedActiveView);
+          }
+        } else if (!isCancelled) {
+          const params = new URLSearchParams(window.location.search);
+          const joinId = params.get('join_board');
+          if (joinId) {
+            setActiveBoardId(joinId);
+          }
+          setActiveView('board');
         }
       } catch (err) {
         console.warn('Failed to load workspace hierarchy from localStorage', err);
@@ -846,12 +886,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
-  const currentMembers = currentWorkspace ? (membersMap[currentWorkspace.id] || []) : [];
-  const currentBoards = currentWorkspace ? (boardsMap[currentWorkspace.id] || []) : [];
+  const currentMembers = useMemo(() => (currentWorkspace ? (membersMap[currentWorkspace.id] || []) : []), [currentWorkspace, membersMap]);
+  const currentBoards = useMemo(() => (currentWorkspace ? (boardsMap[currentWorkspace.id] || []) : []), [currentWorkspace, boardsMap]);
 
-  const activeBoard = activeBoardId
-    ? currentBoards.find((b) => b.id === activeBoardId) || null
-    : null;
+  const activeBoard = useMemo(() => {
+    if (!activeBoardId) return null;
+    const inCurrent = currentBoards.find((b) => b.id === activeBoardId);
+    if (inCurrent) return inCurrent;
+    for (const bList of Object.values(boardsMap)) {
+      const found = bList.find((b) => b.id === activeBoardId);
+      if (found) return found;
+    }
+    return null;
+  }, [activeBoardId, currentBoards, boardsMap]);
+
+  // If active board belongs to another workspace, synchronize currentWorkspace automatically
+  useEffect(() => {
+    if (activeBoard && currentWorkspace?.id !== activeBoard.workspace_id) {
+      const targetWs = workspaces.find((w) => w.id === activeBoard.workspace_id);
+      if (targetWs) {
+        setCurrentWorkspace(targetWs);
+      }
+    }
+  }, [activeBoard, currentWorkspace, workspaces]);
 
   const currentBoardGroups = activeBoardId ? (groupsMap[activeBoardId] || []) : [];
   const currentBoardItems = activeBoardId ? (itemsMap[activeBoardId] || []) : [];
@@ -926,8 +983,229 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const navigateToBoard = (boardId: string) => {
+    // If board is in another workspace, switch currentWorkspace to it
+    for (const [wsId, bList] of Object.entries(boardsMap)) {
+      if (bList.some((b) => b.id === boardId)) {
+        const targetWs = workspaces.find((w) => w.id === wsId);
+        if (targetWs && currentWorkspace?.id !== targetWs.id) {
+          setCurrentWorkspace(targetWs);
+        }
+        break;
+      }
+    }
     setActiveBoardId(boardId);
     setActiveView('board');
+  };
+
+  const joinBoard = async (
+    boardId: string,
+    options?: {
+      role?: string;
+      inviter?: string;
+      boardName?: string;
+      workspaceName?: string;
+      workspaceId?: string;
+    }
+  ): Promise<boolean> => {
+    if (!boardId) return false;
+
+    // 1. Check if board already exists in local boardsMap across any workspace
+    for (const [wsId, bList] of Object.entries(boardsMap)) {
+      const found = bList.find((b) => b.id === boardId);
+      if (found) {
+        const targetWs = workspaces.find((w) => w.id === wsId);
+        if (targetWs && currentWorkspace?.id !== targetWs.id) {
+          setCurrentWorkspace(targetWs);
+        }
+        setActiveBoardId(boardId);
+        setActiveView('board');
+        return true;
+      }
+    }
+
+    // 2. If Supabase is configured, check database
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = createClient();
+        const { data: dbBoard } = await supabase
+          .from('boards')
+          .select('*')
+          .eq('id', boardId)
+          .maybeSingle();
+
+        if (dbBoard) {
+          const boardSummary: BoardSummary = {
+            id: dbBoard.id,
+            workspace_id: dbBoard.workspace_id,
+            name: dbBoard.name,
+            icon_emoji: dbBoard.icon_emoji || '📋',
+            description: dbBoard.description || '',
+            item_count: 0,
+            updated_at: dbBoard.updated_at || new Date().toISOString(),
+          };
+
+          let targetWs = workspaces.find((w) => w.id === dbBoard.workspace_id);
+          if (!targetWs) {
+            const { data: dbWs } = await supabase
+              .from('workspaces')
+              .select('*')
+              .eq('id', dbBoard.workspace_id)
+              .maybeSingle();
+
+            if (dbWs) {
+              targetWs = dbWs;
+              setWorkspaces((prev) => [...prev, dbWs]);
+            } else {
+              targetWs = {
+                id: dbBoard.workspace_id,
+                name: options?.workspaceName || (options?.inviter ? `${options.inviter}'s Team` : 'Shared Workspace'),
+                slug: `shared-${Date.now()}`,
+                icon_emoji: '🤝',
+                brand_color: '#3ecf8e',
+                created_by: options?.inviter || 'Team Lead',
+                created_at: new Date().toISOString(),
+                member_count: 2,
+              };
+              setWorkspaces((prev) => [...prev, targetWs!]);
+            }
+          }
+
+          setBoardsMap((prev) => ({
+            ...prev,
+            [targetWs!.id]: [boardSummary, ...(prev[targetWs!.id] || []).filter((b) => b.id !== boardId)],
+          }));
+          setCurrentWorkspace(targetWs!);
+          setActiveBoardId(boardId);
+          setActiveView('board');
+          return true;
+        }
+      } catch (err) {
+        console.warn('[joinBoard Supabase error]', err);
+      }
+    }
+
+    // 3. Query server-side boards API (cross-device & cross-browser support)
+    try {
+      const serverRes = await fetch(`/api/boards?board_id=${encodeURIComponent(boardId)}`);
+      if (serverRes.ok) {
+        const serverJson = await serverRes.json();
+        if (serverJson.data) {
+          const remoteBoard: BoardSummary = serverJson.data;
+          let targetWs = workspaces.find((w) => w.id === remoteBoard.workspace_id);
+          if (!targetWs) {
+            targetWs = {
+              id: remoteBoard.workspace_id || `ws-${Date.now()}`,
+              name: options?.workspaceName || (options?.inviter ? `${options.inviter}'s Team` : 'Shared Workspace'),
+              slug: `shared-${Date.now()}`,
+              icon_emoji: '🤝',
+              brand_color: '#3ecf8e',
+              created_by: options?.inviter || 'Team Lead',
+              created_at: new Date().toISOString(),
+              member_count: 2,
+            };
+            setWorkspaces((prev) => [...prev.filter((w) => w.id !== targetWs!.id), targetWs!]);
+          }
+
+          setBoardsMap((prev) => ({
+            ...prev,
+            [targetWs!.id]: [remoteBoard, ...(prev[targetWs!.id] || []).filter((b) => b.id !== boardId)],
+          }));
+          setCurrentWorkspace(targetWs!);
+          setActiveBoardId(boardId);
+          setActiveView('board');
+
+          fetch(`/api/tickets?board_id=${boardId}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.data && Array.isArray(data.data)) {
+                setItemsMap((prev) => ({ ...prev, [boardId]: data.data }));
+              }
+            })
+            .catch(() => {});
+
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('[joinBoard server store check error]', err);
+    }
+
+    // 4. Fallback: Local-first collaborative provision for invited board
+    const inviterName = options?.inviter || 'Team Member';
+    const boardTitle = options?.boardName || (options?.inviter ? `${options.inviter}'s Board` : 'Shared Board');
+
+    // Ensure we have a workspace to host this joined board
+    let targetWs = currentWorkspace;
+    if (!targetWs) {
+      const newWsId = options?.workspaceId || `ws-collab-${Date.now()}`;
+      targetWs = {
+        id: newWsId,
+        name: options?.workspaceName || `${inviterName}'s Workspace`,
+        slug: `collab-${Date.now()}`,
+        icon_emoji: '🤝',
+        brand_color: '#3ecf8e',
+        created_by: inviterName,
+        created_at: new Date().toISOString(),
+        member_count: 2,
+      };
+      setWorkspaces((prev) => {
+        const filtered = prev.filter((w) => w.id !== targetWs!.id);
+        return [...filtered, targetWs!];
+      });
+      setCurrentWorkspace(targetWs);
+    }
+
+    const wsId = targetWs.id;
+    const joinedBoardSummary: BoardSummary = {
+      id: boardId,
+      workspace_id: wsId,
+      name: boardTitle,
+      icon_emoji: '📋',
+      color: '#3ecf8e',
+      description: `Collaborative board invited by ${inviterName} (${options?.role || 'member'}).`,
+      item_count: 0,
+      updated_at: new Date().toISOString(),
+      member_avatars: [],
+    };
+
+    const defaultGroups: BoardGroup[] = [
+      { id: `grp-${Date.now()}-todo`, board_id: boardId, name: 'To Do', color: '#6366f1' },
+      { id: `grp-${Date.now()}-progress`, board_id: boardId, name: 'In Progress', color: '#f59e0b' },
+      { id: `grp-${Date.now()}-done`, board_id: boardId, name: 'Done', color: '#10b981' },
+    ];
+
+    setBoardsMap((prev) => ({
+      ...prev,
+      [wsId]: [joinedBoardSummary, ...(prev[wsId] || []).filter((b) => b.id !== boardId)],
+    }));
+
+    // Register board with server so other users and reloads discover it
+    fetch('/api/boards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(joinedBoardSummary),
+    }).catch(() => {});
+
+    setGroupsMap((prev) => {
+      if (!prev[boardId] || prev[boardId].length === 0) {
+        return { ...prev, [boardId]: defaultGroups };
+      }
+      return prev;
+    });
+
+    // Also fetch any tickets that exist on this board from server API
+    fetch(`/api/tickets?board_id=${boardId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.data && Array.isArray(data.data)) {
+          setItemsMap((prev) => ({ ...prev, [boardId]: data.data }));
+        }
+      })
+      .catch(() => {});
+
+    setActiveBoardId(boardId);
+    setActiveView('board');
+    return true;
   };
 
   const navigateToHome = () => {
@@ -1063,7 +1341,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: `act-${Date.now()}`,
           author_name: authorName,
           action: `Created ticket ${ticketNum}`,
-          timestamp: 'Just now',
+          timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString(),
         },
       ],
       comments: [],
@@ -1322,7 +1601,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: `notif-conflict-${Date.now()}`,
         title: 'Optimistic Concurrency Conflict',
         description: `Task was modified by another session (current v${currentVersion}, expected v${ifVersion}).`,
-        timestamp: 'Just now',
+        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         unread: true,
         type: 'system',
       };
@@ -1342,7 +1622,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `act-claim-${Date.now()}`,
       author_name: userName,
       action: `Claimed ticket and set status to Working on it`,
-      timestamp: 'Just now',
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
 
     setItemsMap((prev) => ({
@@ -1435,7 +1716,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `notif-claim-${Date.now()}`,
       title: 'Task Claimed',
       description: `You successfully claimed ${existing.ticket_number || existing.title}`,
-      timestamp: 'Just now',
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
       unread: true,
       type: 'assignment',
     };
@@ -1477,7 +1759,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 id: `act-gh-${Date.now()}`,
                 author_name: `${commit.author.name} (GitHub)`,
                 action: `Pushed commit ${commit.id}: "${commit.message}"`,
-                timestamp: 'Just now',
+                timestamp: new Date().toISOString(),
+                created_at: new Date().toISOString(),
               };
               const updated = {
                 ...item,
@@ -1499,7 +1782,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `notif-gh-${Date.now()}`,
       title: `GitHub Push: ${commit.repo} (${commit.branch})`,
       description: `${commit.author.name}: ${commit.message}`,
-      timestamp: 'Just now',
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
       unread: true,
       type: 'system',
     };
@@ -1547,12 +1831,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const authorAvatar = currentUser?.avatar_url || DEFAULT_AVATAR;
     const authorId = currentUser?.id || 'usr-author';
 
+    const nowIso = new Date().toISOString();
     const newComment: ItemComment = {
       id: `comm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       author_name: authorName,
       author_avatar: authorAvatar,
       content: content.trim(),
-      timestamp: 'Just now',
+      timestamp: nowIso,
+      created_at: nowIso,
       reactions: [],
     };
 
@@ -1819,7 +2105,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       icon_emoji: 'rocket',
       description: `Welcome to ${newWs.name}! Track high-priority items and projects here.`,
       item_count: 0,
-      updated_at: 'Just now',
+      updated_at: new Date().toISOString(),
       member_avatars: currentUser?.avatar_url ? [currentUser.avatar_url] : [],
     };
 
@@ -1914,7 +2200,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `notif-${Date.now()}`,
       title: 'Invitation Sent',
       description: `Invited ${email} as ${role} to ${currentWorkspace.name}`,
-      timestamp: 'Just now',
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
       unread: true,
       type: 'invite',
     };
@@ -2116,7 +2403,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             id: `act-${Date.now()}-${idx}`,
             author_name: authorName,
             action: `Generated from template "${matchedTemplate?.name}"`,
-            timestamp: 'Just now',
+            timestamp: new Date().toISOString(),
+            created_at: new Date().toISOString(),
           },
         ],
         comments: [],
@@ -2133,7 +2421,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       folder_id: folderId || undefined,
       description: description || matchedTemplate?.description || 'New project board',
       item_count: starterItems.length,
-      updated_at: 'Just now',
+      updated_at: new Date().toISOString(),
       member_avatars: currentUser?.avatar_url ? [currentUser.avatar_url] : [],
     };
 
@@ -2141,6 +2429,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       [wsId]: [newBoard, ...(prev[wsId] || [])],
     }));
+
+    // Register board on server so any invite links work immediately across sessions and devices
+    fetch('/api/boards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newBoard),
+    }).catch(() => {});
 
     if (isSupabaseConfigured() && currentUser) {
       try {
@@ -2344,6 +2639,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSubItem,
         deleteSubItem,
         navigateToBoard,
+        joinBoard,
         navigateToHome,
         openItemDetail,
         closeItemDetail,

@@ -19,6 +19,7 @@ import {
   Database
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
+import { formatRelativeTime } from '../../lib/timeAgo';
 
 export const CommandPalette: React.FC = () => {
   const { 
@@ -58,7 +59,7 @@ export const CommandPalette: React.FC = () => {
     id: `board-${b.id}`,
     category: 'Boards',
     title: b.name,
-    subtitle: `${b.item_count} items · updated ${b.updated_at}`,
+    subtitle: `${b.item_count} items · updated ${formatRelativeTime(b.updated_at, b.id)}`,
     icon: <IconBadge nameOrEmoji={b.icon_emoji} size={15} />,
     action: () => {
       navigateToBoard(b.id);
@@ -224,7 +225,7 @@ export const CommandPalette: React.FC = () => {
         <div className="results-container" id="palette-results-list">
           {filtered.length === 0 ? (
             <div className="empty-results">
-              <p>No results found for "{query}"</p>
+              <p>No results found for &quot;{query}&quot;</p>
             </div>
           ) : (
             filtered.map((item, idx) => (

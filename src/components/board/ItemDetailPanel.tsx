@@ -32,6 +32,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { BoardItem, SubTask } from '../../types';
+import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
 
 export const ItemDetailPanel: React.FC = () => {
   const { 
@@ -64,6 +65,15 @@ export const ItemDetailPanel: React.FC = () => {
   const [newTagInput, setNewTagInput] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+
+  // Live ticker to update relative timestamps (e.g. 'Just now' -> '1 min ago') every 30 seconds
+  const [, setTimeTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeTick((t) => t + 1);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const isTitleFocusedRef = useRef(false);
   const isDescFocusedRef = useRef(false);
@@ -746,7 +756,12 @@ export const ItemDetailPanel: React.FC = () => {
                       />
                       <div className="comment-meta">
                         <span className="author-name font-semibold">{comm.author_name}</span>
-                        <span className="timestamp font-mono text-xs">{comm.timestamp}</span>
+                        <span 
+                          className="timestamp font-mono text-xs cursor-default" 
+                          title={formatFullDateTime(comm.created_at || comm.timestamp, comm.id)}
+                        >
+                          {formatRelativeTime(comm.created_at || comm.timestamp, comm.id)}
+                        </span>
                       </div>
                     </div>
                     <p className="comment-text">{comm.content}</p>
@@ -808,7 +823,12 @@ export const ItemDetailPanel: React.FC = () => {
                     <span className="font-semibold text-emerald-400 flex items-center gap-1">
                       <GitCommit size={13} /> {commit.id}
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400">{commit.timestamp}</span>
+                    <span 
+                      className="text-[10px] font-mono text-slate-400 cursor-default" 
+                      title={formatFullDateTime(commit.timestamp, commit.id)}
+                    >
+                      {formatRelativeTime(commit.timestamp, commit.id)}
+                    </span>
                   </div>
                   <p className="text-slate-200 text-xs">{commit.message}</p>
                   <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 font-mono">
@@ -825,7 +845,12 @@ export const ItemDetailPanel: React.FC = () => {
                   <div className="activity-details">
                     <span className="act-author font-semibold">{act.author_name}</span>
                     <span className="act-action">{act.action}</span>
-                    <span className="act-time font-mono text-xs text-muted">{act.timestamp}</span>
+                    <span 
+                      className="act-time font-mono text-xs text-muted cursor-default" 
+                      title={formatFullDateTime(act.created_at || act.timestamp, act.id)}
+                    >
+                      {formatRelativeTime(act.created_at || act.timestamp, act.id)}
+                    </span>
                   </div>
                 </div>
               ))}

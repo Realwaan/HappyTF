@@ -122,6 +122,7 @@ export interface NotificationItem {
   title: string;
   description: string;
   timestamp: string;
+  created_at?: string;
   unread: boolean;
   type: 'assignment' | 'mention' | 'invite' | 'system';
   link?: string;
@@ -159,6 +160,7 @@ export interface ItemActivity {
   author_name: string;
   action: string;
   timestamp: string;
+  created_at?: string;
 }
 
 export interface ItemReaction {
@@ -173,6 +175,7 @@ export interface ItemComment {
   author_avatar: string;
   content: string;
   timestamp: string;
+  created_at?: string;
   reactions: ItemReaction[];
 }
 

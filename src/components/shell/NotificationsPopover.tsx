@@ -11,6 +11,7 @@ import {
   ShieldAlert, 
   Clock 
 } from 'lucide-react';
+import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
 
 interface NotificationsPopoverProps {
   isOpen: boolean;
@@ -88,9 +89,12 @@ export const NotificationsPopover: React.FC<NotificationsPopoverProps> = ({ isOp
               <div className="item-content-col">
                 <div className="item-top-row">
                   <span className="item-title">{n.title}</span>
-                  <span className="item-time">
+                  <span 
+                    className="item-time" 
+                    title={formatFullDateTime(n.created_at || n.timestamp, n.id)}
+                  >
                     <Clock size={11} />
-                    {n.timestamp}
+                    {formatRelativeTime(n.created_at || n.timestamp, n.id)}
                   </span>
                 </div>
                 <p className="item-desc">{n.description}</p>

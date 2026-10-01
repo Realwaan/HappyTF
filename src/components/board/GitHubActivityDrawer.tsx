@@ -20,6 +20,7 @@ import {
   Github
 } from 'lucide-react';
 import { isDeployed } from '@/lib/environment';
+import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
 
 export const GitHubActivityDrawer: React.FC = () => {
   const { 
@@ -85,7 +86,7 @@ export const GitHubActivityDrawer: React.FC = () => {
         branch: selectedBranch,
         message: messageToUse,
         url: `https://github.com/happytf/work-os-core/commit/${shortSha}`,
-        timestamp: 'Just now',
+        timestamp: new Date().toISOString(),
         author: {
           name: committerName,
           username: committerUsername,
@@ -268,9 +269,12 @@ export const GitHubActivityDrawer: React.FC = () => {
                       <span className="text-slate-500 text-[11px] font-mono">@{commit.author.username}</span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
+                    <div 
+                      className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono cursor-default"
+                      title={formatFullDateTime(commit.timestamp, commit.id)}
+                    >
                       <Clock size={11} />
-                      <span>{commit.timestamp}</span>
+                      <span>{formatRelativeTime(commit.timestamp, commit.id)}</span>
                     </div>
                   </div>
 

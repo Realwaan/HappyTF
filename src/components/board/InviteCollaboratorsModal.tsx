@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   Users, 
@@ -50,11 +50,38 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
   const [emailInput, setEmailInput] = useState('');
   const [emailSuccess, setEmailSuccess] = useState('');
 
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const emailTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Keyboard navigation & a11y dismissal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Clean up asynchronous timers on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      if (emailTimeoutRef.current) clearTimeout(emailTimeoutRef.current);
+    };
+  }, []);
+
   if (!isOpen || !activeBoard) return null;
 
-  // Generate shareable join link with origin
+  // Generate shareable join link with origin and metadata
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const joinUrl = `${origin}/?join_board=${activeBoard.id}&role=${selectedRole}&inviter=${encodeURIComponent(
+  const joinUrl = `${origin}/?join_board=${activeBoard.id}&board_name=${encodeURIComponent(
+    activeBoard.name
+  )}&ws_id=${encodeURIComponent(currentWorkspace?.id || '')}&ws_name=${encodeURIComponent(
+    currentWorkspace?.name || 'Workspace'
+  )}&role=${selectedRole}&inviter=${encodeURIComponent(
     currentUser?.full_name || 'Team Lead'
   )}`;
 
@@ -71,7 +98,8 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
         document.body.removeChild(textArea);
       }
       setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2500);
     } catch {
       try {
         const textArea = document.createElement('textarea');
@@ -81,10 +109,12 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
         document.execCommand('copy');
         document.body.removeChild(textArea);
         setCopied(true);
-        setTimeout(() => setCopied(false), 2500);
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+        copyTimeoutRef.current = setTimeout(() => setCopied(false), 2500);
       } catch {
         setCopied(true);
-        setTimeout(() => setCopied(false), 2500);
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+        copyTimeoutRef.current = setTimeout(() => setCopied(false), 2500);
       }
     }
   };
@@ -97,14 +127,16 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
 
   const handleSendEmailInvite = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailInput.trim()) return;
+    const cleanEmail = emailInput.trim();
+    if (!cleanEmail) return;
 
-    inviteMember(emailInput.trim(), selectedRole);
-    setEmailSuccess(`Invitation sent to ${emailInput.trim()}!`);
+    inviteMember(cleanEmail, selectedRole);
+    setEmailSuccess(`Invitation sent to ${cleanEmail}!`);
     setEmailInput('');
-    setTimeout(() => setEmailSuccess(''), 4000);
+    if (emailTimeoutRef.current) clearTimeout(emailTimeoutRef.current);
+    emailTimeoutRef.current = setTimeout(() => setEmailSuccess(''), 4000);
 
-    onBroadcastAction('join', `Invited new collaborator ${emailInput.trim()} to ${activeBoard.name}`);
+    onBroadcastAction('join', `Invited new collaborator ${cleanEmail} to ${activeBoard.name}`);
   };
 
   return (
@@ -112,6 +144,10 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
       <div 
         className="invite-modal-card glass-panel animate-pop-in" 
         id="invite-collaborators-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="invite-modal-title"
+        aria-describedby="invite-modal-desc"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -121,6 +157,7 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
           className="invite-close-btn"
           onClick={onClose}
           title="Close modal"
+          aria-label="Close modal"
         >
           <X size={17} />
         </button>
@@ -131,8 +168,8 @@ export const InviteCollaboratorsModal: React.FC<InviteCollaboratorsModalProps> =
             <Radio size={12} className="pulse-icon" />
             <span>Realtime Multi-User Engine</span>
           </div>
-          <h2 className="invite-title">Invite & Realtime Collaborators</h2>
-          <p className="invite-subtitle">
+          <h2 className="invite-title" id="invite-modal-title">Invite & Realtime Collaborators</h2>
+          <p className="invite-subtitle" id="invite-modal-desc">
             Share this board with teammates or simulate live multiplayer presence in real-time.
           </p>
         </div>

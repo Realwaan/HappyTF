@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         branch: payload.branch || 'main',
         message: payload.message || 'feat(core): real-time team workflow update #TK-1042',
         url: 'https://github.com/happytf/work-os-core/commit/' + Math.random().toString(16).slice(2, 9),
-        timestamp: 'Just now',
+        timestamp: new Date().toISOString(),
         author: payload.author || {
           name: 'Committer',
           username: 'committer',
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         branch: branchName,
         message: c.message,
         url: c.url,
-        timestamp: 'Just now',
+        timestamp: c.timestamp ? new Date(c.timestamp).toISOString() : new Date().toISOString(),
         author: {
           name: c.author?.name || 'GitHub Contributor',
           username: c.author?.username || c.author?.name || 'developer',

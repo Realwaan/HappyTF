@@ -329,7 +329,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
         <div className="auth-footer">
           {mode === 'login' ? (
             <p>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <button 
                 type="button" 
                 className="auth-link font-semibold" 

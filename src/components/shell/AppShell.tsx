@@ -31,7 +31,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     setContextModalOpen,
     isSlackModalOpen,
     setSlackModalOpen,
-    navigateToBoard
+    navigateToBoard,
+    joinBoard,
   } = useApp();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
@@ -41,9 +42,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     const params = new URLSearchParams(window.location.search);
     const joinBoardId = params.get('join_board');
     if (joinBoardId) {
-      navigateToBoard(joinBoardId);
+      const role = params.get('role') || undefined;
+      const inviter = params.get('inviter') || undefined;
+      const boardName = params.get('board_name') || undefined;
+      const wsName = params.get('ws_name') || undefined;
+      const wsId = params.get('ws_id') || undefined;
+
+      joinBoard(joinBoardId, {
+        role,
+        inviter,
+        boardName,
+        workspaceName: wsName,
+        workspaceId: wsId,
+      });
     }
-  }, [navigateToBoard]);
+  }, [joinBoard]);
 
   return (
     <div className="app-shell-root" id="app-shell-container">

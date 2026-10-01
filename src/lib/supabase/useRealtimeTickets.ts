@@ -179,7 +179,7 @@ export function useRealtimeTickets({
     const newNotif: CollaboratorNotification = {
       ...notif,
       id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      timestamp: 'Just now',
+      timestamp: new Date().toISOString(),
     };
     setNotifications((prev) => [newNotif, ...prev.slice(0, 3)]);
 

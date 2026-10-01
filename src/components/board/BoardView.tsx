@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { BoardItem, ViewMode } from '../../types';
 import { isDeployed } from '@/lib/environment';
@@ -53,7 +53,9 @@ import { InviteCollaboratorsModal } from './InviteCollaboratorsModal';
 export const BoardView: React.FC = () => {
   const { 
     currentWorkspace,
+    activeBoardId,
     activeBoard, 
+    joinBoard,
     boardGroups, 
     boardItems, 
     openItemDetail, 
@@ -81,6 +83,28 @@ export const BoardView: React.FC = () => {
   } = useApp();
 
   const [isInviteModalOpen, setInviteModalOpen] = useState(false);
+  const [isAutoJoining, setIsAutoJoining] = useState(false);
+  const autoJoinAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    if (!activeBoard && typeof window !== 'undefined' && !autoJoinAttemptedRef.current) {
+      const params = new URLSearchParams(window.location.search);
+      const joinId = params.get('join_board') || activeBoardId;
+      if (joinId) {
+        autoJoinAttemptedRef.current = true;
+        setIsAutoJoining(true);
+        joinBoard(joinId, {
+          role: params.get('role') || undefined,
+          inviter: params.get('inviter') || undefined,
+          boardName: params.get('board_name') || undefined,
+          workspaceName: params.get('ws_name') || undefined,
+          workspaceId: params.get('ws_id') || undefined,
+        }).finally(() => {
+          setIsAutoJoining(false);
+        });
+      }
+    }
+  }, [activeBoard, activeBoardId, joinBoard]);
 
   const { 
     isConnected: isRealtimeConnected,
@@ -155,9 +179,89 @@ export const BoardView: React.FC = () => {
   };
 
   if (!activeBoard) {
+    const isJoinUrl = typeof window !== 'undefined' && Boolean(new URLSearchParams(window.location.search).get('join_board'));
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const inviterName = urlParams?.get('inviter') || 'A team member';
+    const role = urlParams?.get('role') || 'member';
+    const targetBoardId = urlParams?.get('join_board') || activeBoardId;
+
+    if (isAutoJoining || isJoinUrl) {
+      return (
+        <div className="board-not-found animate-fade-in" style={{ padding: '60px 20px', textAlign: 'center', maxWidth: 520, margin: '0 auto' }}>
+          <div style={{
+            background: 'var(--bg-surface, #1e222d)',
+            border: '1px solid var(--border-subtle, rgba(255,255,255,0.08))',
+            borderRadius: 16,
+            padding: '36px 28px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 16
+          }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              background: 'rgba(99, 102, 241, 0.15)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 26,
+            }}>
+              🤝
+            </div>
+            <div>
+              <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px', color: 'var(--text-primary, #f8fafc)' }}>
+                Joining Collaborative Board
+              </h2>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary, #94a3b8)', margin: 0 }}>
+                <strong>{inviterName}</strong> invited you to collaborate as a <strong>{role}</strong>.
+              </p>
+            </div>
+
+            {isAutoJoining ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--accent-primary, #6366f1)', fontSize: 13, marginTop: 12 }}>
+                <span className="animate-spin" style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%' }} />
+                <span>Syncing board workspace & permissions...</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    if (targetBoardId) {
+                      setIsAutoJoining(true);
+                      joinBoard(targetBoardId, {
+                        role: role,
+                        inviter: inviterName,
+                        boardName: urlParams?.get('board_name') || undefined,
+                        workspaceName: urlParams?.get('ws_name') || undefined,
+                        workspaceId: urlParams?.get('ws_id') || undefined,
+                      }).finally(() => setIsAutoJoining(false));
+                    }
+                  }}
+                >
+                  Enter Board
+                </button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={navigateToHome}>
+                  Back to My Work
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="board-not-found animate-fade-in">
         <h3>Board not found</h3>
+        <p style={{ color: 'var(--text-secondary, #94a3b8)', fontSize: 13, margin: '8px 0 16px' }}>
+          This board may have been removed or you may need an invite link.
+        </p>
         <button type="button" className="btn btn-primary btn-sm" onClick={navigateToHome}>
           Back to My Work
         </button>

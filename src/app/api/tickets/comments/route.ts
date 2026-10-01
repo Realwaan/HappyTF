@@ -75,16 +75,27 @@ export async function POST(request: NextRequest) {
     const currentData = ensureDataFile();
     let updatedList: ItemComment[] = currentData[ticket_id] || [];
 
+    const sanitizeComment = (c: ItemComment): ItemComment => {
+      const nowIso = new Date().toISOString();
+      const createdAt = c.created_at || (c.timestamp && c.timestamp !== 'Just now' ? c.timestamp : nowIso);
+      return {
+        ...c,
+        created_at: createdAt,
+        timestamp: c.timestamp === 'Just now' ? createdAt : (c.timestamp || createdAt),
+      };
+    };
+
     if (Array.isArray(comments)) {
       // Direct replace or sync of comment list for this ticket
-      updatedList = comments;
+      updatedList = comments.map(sanitizeComment);
     } else if (comment && typeof comment === 'object') {
+      const sanitized = sanitizeComment(comment);
       // Append single comment, deduplicating by ID
-      const existingIdx = updatedList.findIndex((c) => c.id === comment.id);
+      const existingIdx = updatedList.findIndex((c) => c.id === sanitized.id);
       if (existingIdx >= 0) {
-        updatedList[existingIdx] = comment;
+        updatedList[existingIdx] = sanitized;
       } else {
-        updatedList.push(comment);
+        updatedList.push(sanitized);
       }
     } else {
       return NextResponse.json({ error: 'Invalid comment payload' }, { status: 400 });

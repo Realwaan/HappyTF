@@ -36,3 +36,8 @@ next-env.d.ts
 # GitHub Actions / Workflows (Explicitly disabled)
 .github/
 
+# ECC Agent Harness & AI configuration (Local only)
+.agents/
+.gemini/
+AGENTS.md
+
