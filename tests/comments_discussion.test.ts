@@ -10,22 +10,24 @@ describe('Task Comment & Discussion Engine', () => {
     status: 'Working on it',
     status_color: '#f59e0b',
     priority: 'high',
+    due_date: '2026-10-10',
     tags: ['ticket', 'backend'],
     activities: [
       {
         id: 'act-1',
-        item_id: 'item-test-1',
         author_name: 'Sarah Connor',
         action: 'created this task',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
         created_at: new Date(Date.now() - 3600000).toISOString(),
       }
     ],
     comments: [
       {
         id: 'comm-1',
-        item_id: 'item-test-1',
         author_name: 'John Doe',
+        author_avatar: '',
         content: 'Initial spec review is complete.',
+        timestamp: new Date(Date.now() - 1800000).toISOString(),
         created_at: new Date(Date.now() - 1800000).toISOString(),
         reactions: [{ emoji: '👍', count: 1, users: ['user-1'] }],
       }
@@ -36,9 +38,10 @@ describe('Task Comment & Discussion Engine', () => {
   it('adds a new comment immutably without modifying existing array in place', () => {
     const newComment: ItemComment = {
       id: 'comm-2',
-      item_id: initialItem.id,
       author_name: 'Marc Andrei',
+      author_avatar: '',
       content: 'LGTM! Pushed fix to staging branch.',
+      timestamp: new Date().toISOString(),
       created_at: new Date().toISOString(),
       reactions: [],
     };
@@ -46,7 +49,7 @@ describe('Task Comment & Discussion Engine', () => {
     const updatedItem: BoardItem = {
       ...initialItem,
       comments: [newComment, ...initialItem.comments],
-      version: initialItem.version + 1,
+      version: (initialItem.version ?? 1) + 1,
     };
 
     expect(updatedItem.comments).toHaveLength(2);
@@ -61,9 +64,10 @@ describe('Task Comment & Discussion Engine', () => {
       comments: [
         {
           id: 'comm-delete-me',
-          item_id: initialItem.id,
           author_name: 'Marc Andrei',
+          author_avatar: '',
           content: 'Typo in update',
+          timestamp: new Date().toISOString(),
           created_at: new Date().toISOString(),
           reactions: [],
         },

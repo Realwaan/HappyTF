@@ -263,18 +263,32 @@ export const CreateWorkspaceModal: React.FC = () => {
           color: var(--primary);
         }
 
+        .color-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-content: flex-start;
+          max-width: 160px;
+        }
+
         .color-btn {
-          width: 26px;
-          height: 26px;
+          width: 28px;
+          height: 28px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: transform var(--transition-fast);
+          cursor: pointer;
+          border: 2px solid transparent;
+          transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+        }
+        .color-btn:hover {
+          transform: scale(1.1);
         }
         .color-btn.selected {
           transform: scale(1.15);
           box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+          border-color: rgba(255, 255, 255, 0.8);
         }
 
         .modal-actions {
