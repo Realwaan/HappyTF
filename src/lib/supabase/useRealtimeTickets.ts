@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createClient, isSupabaseConfigured } from './client';
 import { isDeployed } from '@/lib/environment';
 import { BoardItem, UserProfile } from '@/types';
@@ -140,6 +140,19 @@ export function useRealtimeTickets({
   const [simulatedUsers, setSimulatedUsers] = useState<PresenceUser[]>([]);
   const recentJoinToastsRef = useRef<Map<string, number>>(new Map());
 
+  // Stabilize callbacks in refs to avoid rebuilding the channel on parent re-renders
+  const onTicketInsertRef = useRef(onTicketInsert);
+  onTicketInsertRef.current = onTicketInsert;
+
+  const onTicketUpdateRef = useRef(onTicketUpdate);
+  onTicketUpdateRef.current = onTicketUpdate;
+
+  const onTicketDeleteRef = useRef(onTicketDelete);
+  onTicketDeleteRef.current = onTicketDelete;
+
+  const simulatedUsersRef = useRef(simulatedUsers);
+  simulatedUsersRef.current = simulatedUsers;
+
   // Unique session ID to distinguish tabs even if same user is logged in
   const sessionIdRef = useRef<string>(
     typeof window !== 'undefined'
@@ -149,27 +162,70 @@ export function useRealtimeTickets({
 
   const channelRef = useRef<any>(null);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+  const isConnectedRef = useRef(false);
+  const disconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced connection status setter: prevents temporary WebSocket reconnect blips from flapping UI badge
+  const setConnectionState = useCallback((connected: boolean) => {
+    if (connected) {
+      if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
+      setIsConnected(true);
+      isConnectedRef.current = true;
+    } else {
+      // 2500ms grace period so temporary WebSocket reconnection cycles don't cause UI badge flapping
+      if (!disconnectTimerRef.current) {
+        disconnectTimerRef.current = setTimeout(() => {
+          setIsConnected(false);
+          isConnectedRef.current = false;
+          disconnectTimerRef.current = null;
+        }, 2500);
+      }
+    }
+  }, []);
+
+  // Stable presence timestamp
+  const stableOnlineAtRef = useRef<string>(new Date().toISOString());
 
   // Construct current user's presence payload
   const isProd = isDeployed();
-  const currentPresence: PresenceUser = {
-    id: currentUser?.id || (isProd ? 'usr-guest' : 'usr-demo-001'),
-    name: currentUser?.full_name || (isProd ? 'Team Member' : 'Alex Rivera'),
-    email: currentUser?.email || (isProd ? 'member@happytf.dev' : 'alex.rivera@happytf.dev'),
-    avatar: currentUser?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    role: currentUser?.job_role || (isProd ? 'Team Member' : 'Lead Product Architect'),
-    color: getUserColor(currentUser?.id || (isProd ? 'usr-guest' : 'usr-demo-001')),
-    status: 'active',
-    activeBoardId: boardId,
-    activeItemId: activeItemId || null,
-    activeItemTitle: activeItemTitle || null,
-    onlineAt: new Date().toISOString(),
-  };
+  const currentPresence: PresenceUser = useMemo(() => {
+    const uid = currentUser?.id || (isProd ? 'usr-guest' : 'usr-demo-001');
+    return {
+      id: uid,
+      name: currentUser?.full_name || (isProd ? 'Team Member' : 'Alex Rivera'),
+      email: currentUser?.email || (isProd ? 'member@happytf.dev' : 'alex.rivera@happytf.dev'),
+      avatar: currentUser?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      role: currentUser?.job_role || (isProd ? 'Team Member' : 'Lead Product Architect'),
+      color: getUserColor(uid),
+      status: 'active',
+      activeBoardId: boardId,
+      activeItemId: activeItemId || null,
+      activeItemTitle: activeItemTitle || null,
+      onlineAt: stableOnlineAtRef.current,
+    };
+  }, [
+    currentUser?.id,
+    currentUser?.full_name,
+    currentUser?.email,
+    currentUser?.avatar_url,
+    currentUser?.job_role,
+    boardId,
+    activeItemId,
+    activeItemTitle,
+    isProd,
+  ]);
+
+  const currentPresenceRef = useRef(currentPresence);
+  currentPresenceRef.current = currentPresence;
 
   const addNotification = useCallback((notif: Omit<CollaboratorNotification, 'id' | 'timestamp'>) => {
     // Prevent self-notifications: never toast for the current user
+    const curId = currentPresenceRef.current?.id;
     if (
-      notif.userId === currentPresence.id ||
+      notif.userId === curId ||
       notif.userId === currentUser?.id ||
       (currentUser?.full_name && notif.userName?.toLowerCase() === currentUser.full_name.toLowerCase())
     ) {
@@ -187,18 +243,95 @@ export function useRealtimeTickets({
     setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== newNotif.id));
     }, 4000);
-  }, [currentPresence.id, currentUser?.id, currentUser?.full_name]);
+  }, [currentUser?.id, currentUser?.full_name]);
+
+  const addNotificationRef = useRef(addNotification);
+  addNotificationRef.current = addNotification;
 
   const dismissNotification = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
+
+  // Presence state tracking refs
+  const crossTabUsersRef = useRef<Record<string, PresenceUser>>({});
+  const supabasePresenceListRef = useRef<PresenceUser[]>([]);
+
+  const syncAllOnlineUsers = useCallback(() => {
+    const mergedMap = new Map<string, PresenceUser>();
+
+    // 1. Current user
+    const cur = currentPresenceRef.current;
+    if (cur?.id) {
+      mergedMap.set(cur.id, cur);
+    }
+
+    // 2. Cross tab users
+    Object.values(crossTabUsersRef.current).forEach((u) => {
+      if (u.id) mergedMap.set(u.id, u);
+    });
+
+    // 3. Supabase presence users
+    supabasePresenceListRef.current.forEach((u) => {
+      if (u.id) mergedMap.set(u.id, u);
+    });
+
+    // 4. Simulated users
+    simulatedUsersRef.current.forEach((u) => {
+      if (u.id) mergedMap.set(u.id, u);
+    });
+
+    const nextList = Array.from(mergedMap.values());
+    setOnlineUsers((prev) => {
+      if (
+        prev.length === nextList.length &&
+        prev.every(
+          (u, idx) =>
+            u.id === nextList[idx].id &&
+            u.status === nextList[idx].status &&
+            u.activeItemId === nextList[idx].activeItemId &&
+            u.role === nextList[idx].role
+        )
+      ) {
+        return prev;
+      }
+      return nextList;
+    });
+  }, []);
+
+  // Sync simulated users directly without rebuilding the channel
+  useEffect(() => {
+    syncAllOnlineUsers();
+  }, [simulatedUsers, syncAllOnlineUsers]);
+
+  // Track presence updates without rebuilding the channel
+  useEffect(() => {
+    if (channelRef.current && isConnectedRef.current) {
+      try {
+        channelRef.current.track(currentPresence);
+      } catch (err) {
+        console.warn('Presence track error:', err);
+      }
+    }
+    if (broadcastChannelRef.current) {
+      try {
+        broadcastChannelRef.current.postMessage({
+          type: 'PRESENCE_HEARTBEAT',
+          payload: {
+            sessionId: sessionIdRef.current,
+            user: currentPresence,
+          },
+        });
+      } catch {}
+    }
+    syncAllOnlineUsers();
+  }, [currentPresence, syncAllOnlineUsers]);
 
   // Broadcast an action to all connected users
   const broadcastAction = useCallback(
     (action: 'join' | 'leave' | 'view' | 'claim' | 'status_change', message: string, metadata?: any) => {
       const payload = {
         sessionId: sessionIdRef.current,
-        user: currentPresence,
+        user: currentPresenceRef.current,
         action,
         message,
         metadata,
@@ -206,7 +339,7 @@ export function useRealtimeTickets({
       };
 
       // 1. Send via Supabase Realtime Broadcast if connected
-      if (channelRef.current && isConnected) {
+      if (channelRef.current && isConnectedRef.current) {
         try {
           channelRef.current.send({
             type: 'broadcast',
@@ -226,7 +359,7 @@ export function useRealtimeTickets({
         } catch {}
       }
     },
-    [currentPresence, isConnected]
+    []
   );
 
   // Broadcast ticket creation to all connected users across browsers/devices
@@ -240,7 +373,7 @@ export function useRealtimeTickets({
         timestamp: new Date().toISOString(),
       };
 
-      if (channelRef.current && isConnected) {
+      if (channelRef.current && isConnectedRef.current) {
         try {
           channelRef.current.send({
             type: 'broadcast',
@@ -263,7 +396,7 @@ export function useRealtimeTickets({
         }
       }
     },
-    [boardId, isConnected]
+    [boardId]
   );
 
   // Broadcast ticket or comment update to all connected users across browsers/devices
@@ -278,7 +411,7 @@ export function useRealtimeTickets({
       };
 
       // 1. Send via Supabase Realtime Broadcast (Cross-device, cross-browser, incognito)
-      if (channelRef.current && isConnected) {
+      if (channelRef.current && isConnectedRef.current) {
         try {
           channelRef.current.send({
             type: 'broadcast',
@@ -302,7 +435,7 @@ export function useRealtimeTickets({
         }
       }
     },
-    [boardId, isConnected]
+    [boardId]
   );
 
   // Broadcast ticket deletion to all connected users across browsers/devices
@@ -316,7 +449,7 @@ export function useRealtimeTickets({
         timestamp: new Date().toISOString(),
       };
 
-      if (channelRef.current && isConnected) {
+      if (channelRef.current && isConnectedRef.current) {
         try {
           channelRef.current.send({
             type: 'broadcast',
@@ -339,10 +472,9 @@ export function useRealtimeTickets({
         }
       }
     },
-    [boardId, isConnected]
+    [boardId]
   );
 
-  // Simulate a teammate joining
   // Simulate a teammate joining (updates presence stack in header silently)
   const simulateCollaboratorJoin = useCallback(
     (teammate: PresenceUser) => {
@@ -363,10 +495,12 @@ export function useRealtimeTickets({
   );
 
   // Main Realtime Effect (Supabase + BroadcastChannel)
+  // Strictly keyed to [workspaceId, boardId] so parent renders never tear down the channel!
   useEffect(() => {
     if (!boardId) return;
 
-    let crossTabUsers: Record<string, PresenceUser> = {};
+    crossTabUsersRef.current = {};
+    supabasePresenceListRef.current = [];
 
     // -------------------------------------------------------------
     // 1. Cross-Tab Browser BroadcastChannel (Instant Local Multi-Tab)
@@ -384,7 +518,7 @@ export function useRealtimeTickets({
           if (payload.sessionId === sessionIdRef.current) return; // Ignore self
 
           if (type === 'PRESENCE_ANNOUNCE' || type === 'PRESENCE_HEARTBEAT') {
-            crossTabUsers[payload.sessionId] = payload.user;
+            crossTabUsersRef.current[payload.sessionId] = payload.user;
             syncAllOnlineUsers();
 
             if (type === 'PRESENCE_ANNOUNCE') {
@@ -393,15 +527,15 @@ export function useRealtimeTickets({
                 type: 'PRESENCE_HEARTBEAT',
                 payload: {
                   sessionId: sessionIdRef.current,
-                  user: currentPresence,
+                  user: currentPresenceRef.current,
                 },
               });
             }
           } else if (type === 'PRESENCE_LEAVE') {
-            delete crossTabUsers[payload.sessionId];
+            delete crossTabUsersRef.current[payload.sessionId];
             syncAllOnlineUsers();
           } else if (type === 'COLLABORATOR_ACTION') {
-            addNotification({
+            addNotificationRef.current({
               userId: payload.user.id,
               userName: payload.user.name,
               userAvatar: payload.user.avatar,
@@ -410,25 +544,25 @@ export function useRealtimeTickets({
               message: payload.message,
             });
           } else if (type === 'TICKET_INSERT') {
-            if (onTicketInsert && payload.ticket) {
-              onTicketInsert(payload.ticket);
+            if (onTicketInsertRef.current && payload.ticket) {
+              onTicketInsertRef.current(payload.ticket);
             }
             if (payload.notification) {
-              addNotification(payload.notification);
+              addNotificationRef.current(payload.notification);
             }
           } else if (type === 'TICKET_UPDATE') {
-            if (onTicketUpdate && payload.ticket) {
-              onTicketUpdate(payload.ticket);
+            if (onTicketUpdateRef.current && payload.ticket) {
+              onTicketUpdateRef.current(payload.ticket);
             }
             if (payload.notification) {
-              addNotification(payload.notification);
+              addNotificationRef.current(payload.notification);
             }
           } else if (type === 'TICKET_DELETE') {
-            if (onTicketDelete && payload.ticketId) {
-              onTicketDelete(payload.ticketId);
+            if (onTicketDeleteRef.current && payload.ticketId) {
+              onTicketDeleteRef.current(payload.ticketId);
             }
             if (payload.notification) {
-              addNotification(payload.notification);
+              addNotificationRef.current(payload.notification);
             }
           }
         };
@@ -438,40 +572,13 @@ export function useRealtimeTickets({
           type: 'PRESENCE_ANNOUNCE',
           payload: {
             sessionId: sessionIdRef.current,
-            user: currentPresence,
+            user: currentPresenceRef.current,
           },
         });
       } catch (err) {
         console.warn('BroadcastChannel presence fallback unavailable', err);
       }
     }
-
-    // Helper to merge all user sources: Current User + Cross-tab users + Supabase presence users + Simulated users
-    let supabasePresenceList: PresenceUser[] = [];
-
-    const syncAllOnlineUsers = () => {
-      const mergedMap = new Map<string, PresenceUser>();
-
-      // 1. Current user
-      mergedMap.set(currentPresence.id, currentPresence);
-
-      // 2. Cross tab users
-      Object.values(crossTabUsers).forEach((u) => {
-        mergedMap.set(u.id, u);
-      });
-
-      // 3. Supabase presence users
-      supabasePresenceList.forEach((u) => {
-        if (u.id) mergedMap.set(u.id, u);
-      });
-
-      // 4. Simulated users
-      simulatedUsers.forEach((u) => {
-        mergedMap.set(u.id, u);
-      });
-
-      setOnlineUsers(Array.from(mergedMap.values()));
-    };
 
     // Initial sync
     syncAllOnlineUsers();
@@ -501,25 +608,26 @@ export function useRealtimeTickets({
             Object.values(state).forEach((entries: any) => {
               if (Array.isArray(entries)) {
                 entries.forEach((entry: any) => {
-                  if (entry.id && entry.id !== currentPresence.id) {
+                  if (entry.id && entry.id !== currentPresenceRef.current?.id) {
                     list.push(entry);
                   }
                 });
               }
             });
-            supabasePresenceList = list;
+            supabasePresenceListRef.current = list;
             syncAllOnlineUsers();
             setLastSyncTime(new Date());
           })
           .on('presence', { event: 'join' }, ({ newPresences }: any) => {
-            // Join toasts only pop in deployed production environments (keeping local development completely silent)
+            // Join toasts only pop in deployed production environments
             if (!isDeployedProduction()) return;
 
             if (Array.isArray(newPresences)) {
               const now = Date.now();
+              const myId = currentPresenceRef.current?.id;
               newPresences.forEach((p: PresenceUser) => {
                 const isSelf =
-                  p.id === currentPresence.id ||
+                  p.id === myId ||
                   p.id === currentUser?.id ||
                   (currentUser?.full_name && p.name?.toLowerCase() === currentUser.full_name.toLowerCase());
 
@@ -528,7 +636,7 @@ export function useRealtimeTickets({
                   // Deduplicate so reconnects or repeated presence pulses within 45s don't re-toast
                   if (now - lastToasted > 45000) {
                     recentJoinToastsRef.current.set(p.id, now);
-                    addNotification({
+                    addNotificationRef.current({
                       userId: p.id,
                       userName: p.name || 'Collaborator',
                       userAvatar: p.avatar || '',
@@ -546,7 +654,7 @@ export function useRealtimeTickets({
           })
           .on('broadcast', { event: 'collaborator_action' }, ({ payload }: any) => {
             if (payload && payload.sessionId !== sessionIdRef.current) {
-              addNotification({
+              addNotificationRef.current({
                 userId: payload.user?.id || 'usr',
                 userName: payload.user?.name || 'Collaborator',
                 userAvatar: getSafeAvatar(payload.user?.avatar, payload.user?.name),
@@ -558,11 +666,11 @@ export function useRealtimeTickets({
           })
           .on('broadcast', { event: 'ticket_insert' }, ({ payload }: any) => {
             if (payload && payload.sessionId !== sessionIdRef.current && payload.ticket) {
-              if (onTicketInsert) {
-                onTicketInsert(payload.ticket);
+              if (onTicketInsertRef.current) {
+                onTicketInsertRef.current(payload.ticket);
               }
               if (payload.notification) {
-                addNotification({
+                addNotificationRef.current({
                   userId: payload.notification.userId || 'usr',
                   userName: payload.notification.userName || 'Collaborator',
                   userAvatar: getSafeAvatar(payload.notification.userAvatar, payload.notification.userName),
@@ -575,11 +683,11 @@ export function useRealtimeTickets({
           })
           .on('broadcast', { event: 'ticket_update' }, ({ payload }: any) => {
             if (payload && payload.sessionId !== sessionIdRef.current && payload.ticket) {
-              if (onTicketUpdate) {
-                onTicketUpdate(payload.ticket);
+              if (onTicketUpdateRef.current) {
+                onTicketUpdateRef.current(payload.ticket);
               }
               if (payload.notification) {
-                addNotification({
+                addNotificationRef.current({
                   userId: payload.notification.userId || 'usr',
                   userName: payload.notification.userName || 'Collaborator',
                   userAvatar: getSafeAvatar(payload.notification.userAvatar, payload.notification.userName),
@@ -592,11 +700,11 @@ export function useRealtimeTickets({
           })
           .on('broadcast', { event: 'ticket_delete' }, ({ payload }: any) => {
             if (payload && payload.sessionId !== sessionIdRef.current && payload.ticketId) {
-              if (onTicketDelete) {
-                onTicketDelete(payload.ticketId);
+              if (onTicketDeleteRef.current) {
+                onTicketDeleteRef.current(payload.ticketId);
               }
               if (payload.notification) {
-                addNotification({
+                addNotificationRef.current({
                   userId: payload.notification.userId || 'usr',
                   userName: payload.notification.userName || 'Collaborator',
                   userAvatar: getSafeAvatar(payload.notification.userAvatar, payload.notification.userName),
@@ -618,8 +726,8 @@ export function useRealtimeTickets({
             },
             (payload) => {
               setLastSyncTime(new Date());
-              if (onTicketInsert && payload.new) {
-                onTicketInsert(payload.new as unknown as BoardItem);
+              if (onTicketInsertRef.current && payload.new) {
+                onTicketInsertRef.current(payload.new as unknown as BoardItem);
               }
             }
           )
@@ -633,8 +741,8 @@ export function useRealtimeTickets({
             },
             (payload) => {
               setLastSyncTime(new Date());
-              if (onTicketUpdate && payload.new) {
-                onTicketUpdate(payload.new as unknown as BoardItem);
+              if (onTicketUpdateRef.current && payload.new) {
+                onTicketUpdateRef.current(payload.new as unknown as BoardItem);
               }
             }
           )
@@ -648,23 +756,23 @@ export function useRealtimeTickets({
             },
             (payload) => {
               setLastSyncTime(new Date());
-              if (onTicketDelete && payload.old) {
-                onTicketDelete(payload.old.id);
+              if (onTicketDeleteRef.current && payload.old) {
+                onTicketDeleteRef.current(payload.old.id);
               }
             }
           )
           .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-              setIsConnected(true);
+              setConnectionState(true);
               setLastSyncTime(new Date());
               // Track current presence
               try {
-                await channel.track(currentPresence);
+                await channel.track(currentPresenceRef.current);
               } catch (trackErr) {
                 console.warn('Presence track error:', trackErr);
               }
-            } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-              setIsConnected(false);
+            } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              setConnectionState(false);
             }
           });
       } catch (err) {
@@ -672,11 +780,16 @@ export function useRealtimeTickets({
       }
     } else {
       // Local fallback mode: connected locally via BroadcastChannel
-      setIsConnected(true);
+      setConnectionState(true);
       setLastSyncTime(new Date());
     }
 
     return () => {
+      if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
+
       // Announce leave via BroadcastChannel
       if (bc) {
         try {
@@ -695,20 +808,11 @@ export function useRealtimeTickets({
         try {
           const supabase = createClient();
           supabase.removeChannel(channelRef.current);
+          channelRef.current = null;
         } catch {}
       }
     };
-  }, [
-    workspaceId,
-    boardId,
-    currentUser?.id,
-    currentUser?.full_name,
-    simulatedUsers,
-    onTicketInsert,
-    onTicketUpdate,
-    onTicketDelete,
-    addNotification,
-  ]);
+  }, [workspaceId, boardId, setConnectionState, syncAllOnlineUsers]);
 
   return {
     isConnected,

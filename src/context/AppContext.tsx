@@ -924,7 +924,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [itemsMap]);
 
   // Real-time Postgres CDC Handlers
-  const onTicketInsert = (ticket: BoardItem) => {
+  const onTicketInsert = useCallback((ticket: BoardItem) => {
     if (!ticket || !ticket.board_id) return;
     const safeTicket: BoardItem = {
       ...ticket,
@@ -941,9 +941,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         [safeTicket.board_id]: [safeTicket, ...list],
       };
     });
-  };
+  }, []);
 
-  const onTicketUpdate = (ticket: BoardItem) => {
+  const onTicketUpdate = useCallback((ticket: BoardItem) => {
     if (!ticket || !ticket.id) return;
     const safeTicket: BoardItem = {
       ...ticket,
@@ -971,9 +971,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (selectedItemRef.current?.id === safeTicket.id) {
       setSelectedItem((prev) => (prev ? { ...prev, ...safeTicket } : safeTicket));
     }
-  };
+  }, []);
 
-  const onTicketDelete = (ticketId: string) => {
+  const onTicketDelete = useCallback((ticketId: string) => {
     if (!ticketId) return;
     setItemsMap((prev) => {
       const nextMap = { ...prev };
@@ -982,10 +982,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return nextMap;
     });
-    if (selectedItem?.id === ticketId) {
+    if (selectedItemRef.current?.id === ticketId) {
       setSelectedItem(null);
     }
-  };
+  }, []);
 
   const navigateToBoard = (boardId: string) => {
     // If board is in another workspace, switch currentWorkspace to it

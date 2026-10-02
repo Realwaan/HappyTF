@@ -395,7 +395,7 @@ export const BoardView: React.FC = () => {
               title="Realtime sync status"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>{isRealtimeConnected ? `${onlineUsers.length} Online` : 'Sync Ready'}</span>
+              <span>{isRealtimeConnected || onlineUsers.length > 0 ? `${Math.max(1, onlineUsers.length)} Online` : 'Sync Ready'}</span>
             </div>
 
             <button
