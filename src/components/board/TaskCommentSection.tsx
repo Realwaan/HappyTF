@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { BoardItem, ItemComment, ItemActivity, GitHubCommit, WorkspaceMember } from '../../types';
 import { getSafeAvatar } from '../../lib/avatarHelper';
+import { isDeployed } from '@/lib/environment';
 import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
 import { 
   MessageSquare, 
@@ -25,6 +26,7 @@ import {
   Layers,
   ChevronDown
 } from 'lucide-react';
+import { playClickSound, playTransitionSound } from '../../lib/soundFx';
 
 interface TaskCommentSectionProps {
   item: BoardItem;
@@ -48,6 +50,7 @@ export const TaskCommentSection: React.FC<TaskCommentSectionProps> = ({ item, li
   const [showMentionMenu, setShowMentionMenu] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [activeEmojiPickerCommentId, setActiveEmojiPickerCommentId] = useState<string | null>(null);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mentionMenuRef = useRef<HTMLDivElement>(null);
@@ -58,6 +61,20 @@ export const TaskCommentSection: React.FC<TaskCommentSectionProps> = ({ item, li
     const timer = setInterval(() => setTimeTick((t) => t + 1), 30000);
     return () => clearInterval(timer);
   }, []);
+
+  // Presence simulation: when looking at discussion, occasionally simulate active collaborator typing
+  useEffect(() => {
+    if (!isDeployed() && item.comments.length > 0) {
+      const timeout = setTimeout(() => {
+        setTypingUsers(['Taylor Chen']);
+        const clearTime = setTimeout(() => {
+          setTypingUsers([]);
+        }, 3500);
+        return () => clearTimeout(clearTime);
+      }, 4000);
+      return () => clearTimeout(timeout);
+    }
+  }, [item.id, item.comments.length]);
 
   // Handle outside click for emoji picker & mention dropdown
   useEffect(() => {
@@ -154,6 +171,7 @@ export const TaskCommentSection: React.FC<TaskCommentSectionProps> = ({ item, li
   const handleSubmitComment = () => {
     if (!commentText.trim() || isSubmitting) return;
     setIsSubmitting(true);
+    playClickSound();
     addItemComment(item.id, commentText.trim());
     setCommentText('');
     setShowMentionMenu(false);
@@ -276,6 +294,20 @@ export const TaskCommentSection: React.FC<TaskCommentSectionProps> = ({ item, li
           <span className="tab-count font-mono">{comments.length + activities.length + linkedCommits.length}</span>
         </button>
       </div>
+
+      {/* Live Collaborator Typing Indicator */}
+      {typingUsers.length > 0 && (
+        <div className="typing-indicator-bar flex items-center gap-2 px-3 py-1.5 text-xs text-slate-400 bg-slate-900/60 rounded-lg border border-slate-800/80 mb-2 animate-fade-in">
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </span>
+          <span className="text-[11px] font-medium text-slate-300">
+            {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+          </span>
+        </div>
+      )}
 
       {/* 2. Modern Rich Comment Composer */}
       <div className="composer-container glass-panel">

@@ -43,9 +43,9 @@ flowchart TD
     end
 
     subgraph Integrations["External Integration Hub"]
-        GitHub["GitHub Webhooks (HMAC SHA-256)"]
-        Slack["Slack Bot & Urgent Alerts"]
-        Monday["Monday.com 2-Way Sync Bridge"]
+        GitHub["GitHub Webhooks (PR Auto-Transitions & HMAC SHA-256)"]
+        Discord["CapStoneFlow Discord Bot (24 Commands & Ed25519)"]
+        Automation["Workflow Automation Engine (IFTTT)"]
     end
 
     API --> RateLimit
@@ -55,9 +55,9 @@ flowchart TD
     API --> RLS
     RLS --> DB
     Realtime -.->|WebSocket / Live State| State
-    GitHub -->|Push Commits| API
-    API --> Slack
-    API <--> Monday
+    GitHub -->|PR & Push Webhooks| API
+    API <-->|Slash Commands & Alerts| Discord
+    API --> Automation
 ```
 
 ---
@@ -91,14 +91,14 @@ flowchart TD
 | `/api/tickets/comments` | `GET`, `POST` | Threaded discussion comments per ticket. |
 | `/api/channels` | `GET`, `POST` | Team communication channels within a workspace. |
 | `/api/channels/[id]/messages` | `GET`, `POST` | Channel messages with rich content and emoji reactions. |
-| `/api/webhooks/github` | `POST`, `GET` | Inbound GitHub push event handler with HMAC SHA-256 verification and automatic ticket commit linking. |
-| `/api/integrations/*` | `POST`, `GET` | Slack alert dispatching and Monday.com synchronization. |
+| `/api/webhooks/github` | `POST`, `GET` | Inbound GitHub push and PR webhook handler with HMAC SHA-256 verification and automatic `#TK-xxxx` transitions (`In Review`, `Done`). |
+| `/api/integrations/discord/*` | `POST`, `GET` | CapStoneFlow Discord Bot interaction gateway (Ed25519 verified), slash command dispatch, and thread synchronizer. |
 
 ---
 
 ### 3.3 Caching, Rate-Limiting & Idempotency (`src/lib/redis.ts`)
 - **Rate Limiting**: Sliding-window rate limiting on sensitive API endpoints to protect against bursts and abuse.
-- **Webhook Deduplication**: Ingest buffer and idempotency checks (`idempotency:[event_id]`) to prevent duplicate webhook delivery from GitHub, Slack, or Monday.com.
+- **Webhook Deduplication**: Ingest buffer and idempotency checks (`idempotency:[event_id]`) to prevent duplicate webhook delivery from GitHub or Discord.
 - **Session & Board Cache**: In-memory caching for workspace metadata and active board summaries for sub-5ms response times.
 
 ---

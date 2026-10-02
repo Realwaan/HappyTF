@@ -6,6 +6,7 @@ import { AppProvider } from '../context/AppContext';
 import { CookieConsentBanner } from '../components/common/CookieConsentBanner';
 import { AnalyticsProvider } from '../components/common/AnalyticsProvider';
 import StyledJsxRegistry from '../lib/registry';
+import { PwaRegister } from '../components/common/PwaRegister';
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -58,6 +59,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
+  manifest: '/manifest.json',
   icons: {
     icon: '/icon.svg',
     shortcut: '/icon.svg',
@@ -116,6 +118,7 @@ export default function RootLayout({
           <AnalyticsProvider>
             <AppProvider>
               {children}
+              <PwaRegister />
               <CookieConsentBanner />
             </AppProvider>
           </AnalyticsProvider>

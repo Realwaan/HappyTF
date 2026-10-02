@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { BoardItem, ViewMode } from '../../types';
 import { isDeployed } from '@/lib/environment';
+import { playClickSound, playTransitionSound, playCompleteSound } from '../../lib/soundFx';
 import { 
   Table, 
   Kanban, 
@@ -157,6 +158,16 @@ export const BoardView: React.FC = () => {
   const [expandedSubItems, setExpandedSubItems] = useState<Record<string, boolean>>(
     isDeployed() ? {} : { 'item-tk-1': true }
   );
+
+  const focusedTeammatesByItem = useMemo(() => {
+    const map = new Map<string, (typeof onlineUsers)[0]>();
+    onlineUsers.forEach((u) => {
+      if (u.activeItemId && u.id !== currentUser?.id) {
+        map.set(u.activeItemId, u);
+      }
+    });
+    return map;
+  }, [onlineUsers, currentUser?.id]);
 
   const toggleSubItemExpand = (itemId: string) => {
     setExpandedSubItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
@@ -577,6 +588,8 @@ export const BoardView: React.FC = () => {
                           const formulaVal = evaluateFormula('{Story Pts} * 1.5', { 'Story Pts': pointsVal });
                           const isRowActive = activeInlineStatusId === item.id;
 
+                          const activeViewer = focusedTeammatesByItem.get(item.id);
+
                           return (
                             <div key={item.id} className="flex flex-col border-b border-slate-800/60">
                               <div
@@ -584,7 +597,9 @@ export const BoardView: React.FC = () => {
                                 style={{ 
                                   gridTemplateColumns: 'minmax(280px, 2fr) 140px 140px 90px 120px 80px 90px',
                                   zIndex: isRowActive ? 70 : 1,
-                                  position: 'relative'
+                                  position: 'relative',
+                                  borderLeft: activeViewer ? `3px solid ${activeViewer.color}` : undefined,
+                                  backgroundColor: activeViewer ? `${activeViewer.color}0a` : undefined,
                                 }}
                                 id={`board-item-row-${item.id}`}
                                 onClick={() => openItemDetail(item)}
@@ -610,17 +625,16 @@ export const BoardView: React.FC = () => {
                                     {ticketNumber}
                                   </span>
                                   <span className="row-item-title truncate">{item.title}</span>
-                                  {onlineUsers.filter((u) => u.activeItemId === item.id && u.id !== currentUser?.id).map((u) => (
+                                  {activeViewer && (
                                     <span 
-                                      key={u.id}
-                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border shrink-0"
-                                      style={{ borderColor: `${u.color}50`, backgroundColor: `${u.color}15`, color: u.color }}
-                                      title={`${u.name} (${u.role}) is viewing this item`}
+                                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 animate-pulse"
+                                      style={{ borderColor: `${activeViewer.color}60`, backgroundColor: `${activeViewer.color}20`, color: activeViewer.color }}
+                                      title={`${activeViewer.name} (${activeViewer.role}) is viewing this item`}
                                     >
-                                      <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: u.color }} />
-                                      <span>{u.name.split(' ')[0]}</span>
+                                      <img src={getSafeAvatar(activeViewer.avatar, activeViewer.name)} alt={activeViewer.name} className="w-3.5 h-3.5 rounded-full object-cover" />
+                                      <span>{activeViewer.name.split(' ')[0]} viewing</span>
                                     </span>
-                                  ))}
+                                  )}
                                 </div>
 
                                 {/* Status Chip */}
@@ -652,6 +666,11 @@ export const BoardView: React.FC = () => {
                                             type="button"
                                             className={`dropdown-option ${item.status === s.label ? 'active' : ''}`}
                                             onClick={() => {
+                                              if (s.label === 'Done') {
+                                                playCompleteSound();
+                                              } else {
+                                                playTransitionSound();
+                                              }
                                               updateBoardItem(item.id, {
                                                 status: s.label,
                                                 status_color: s.color,
@@ -681,6 +700,7 @@ export const BoardView: React.FC = () => {
                                       className="btn-claim"
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        playClickSound();
                                         claimBoardItem(item.id, item.version);
                                       }}
                                       title="Claim this task for yourself"
@@ -850,6 +870,11 @@ export const BoardView: React.FC = () => {
                     if (!droppedCardId) return;
                     const targetCard = filteredItems.find((i) => i.id === droppedCardId);
                     if (!targetCard || targetCard.status === st.label) return;
+                    if (st.label === 'Done') {
+                      playCompleteSound();
+                    } else {
+                      playTransitionSound();
+                    }
                     updateBoardItem(targetCard.id, { status: st.label, status_color: st.color }, targetCard.version);
                   }}
                 >
@@ -869,14 +894,20 @@ export const BoardView: React.FC = () => {
                       const subtaskCount = card.subtasks?.length || 0;
                       const completedSubtasks = card.subtasks?.filter((s) => s.completed).length || 0;
                       const isThisDragging = draggingCardId === card.id;
+                      const activeViewer = focusedTeammatesByItem.get(card.id);
 
                       return (
                         <div
                           key={card.id}
                           className={`kanban-card glass-panel ${isThisDragging ? 'is-dragging' : ''}`}
                           id={`kanban-card-${card.id}`}
+                          style={activeViewer ? {
+                            borderColor: activeViewer.color,
+                            boxShadow: `0 0 16px ${activeViewer.color}50, inset 0 0 0 1px ${activeViewer.color}80`,
+                          } : undefined}
                           draggable
                           onDragStart={(e) => {
+                            playClickSound();
                             e.dataTransfer.setData('text/plain', card.id);
                             e.dataTransfer.effectAllowed = 'move';
                             setDraggingCardId(card.id);
@@ -891,6 +922,23 @@ export const BoardView: React.FC = () => {
                             <span className="issue-key-badge font-mono">
                               {ticketNumber}
                             </span>
+                            {activeViewer && (
+                              <div 
+                                className="presence-focus-pill inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold animate-pulse"
+                                style={{ 
+                                  backgroundColor: `${activeViewer.color}25`, 
+                                  color: activeViewer.color,
+                                  border: `1px solid ${activeViewer.color}60`
+                                }}
+                              >
+                                <img 
+                                  src={getSafeAvatar(activeViewer.avatar, activeViewer.name)} 
+                                  alt={activeViewer.name}
+                                  className="w-3.5 h-3.5 rounded-full object-cover" 
+                                />
+                                <span>{activeViewer.name.split(' ')[0]} inspecting</span>
+                              </div>
+                            )}
                             <div className="flex items-center gap-1.5 ml-auto">
                               {renderSourceBadge(card)}
                               <span className={`badge badge-${card.priority}`}>{card.priority}</span>
@@ -899,17 +947,6 @@ export const BoardView: React.FC = () => {
 
                           <h4 className="card-title flex items-center justify-between gap-1">
                             <span className="truncate">{card.title}</span>
-                            {onlineUsers.filter((u) => u.activeItemId === card.id && u.id !== currentUser?.id).map((u) => (
-                              <span 
-                                key={u.id}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border shrink-0"
-                                style={{ borderColor: `${u.color}50`, backgroundColor: `${u.color}15`, color: u.color }}
-                                title={`${u.name} is viewing this card`}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: u.color }} />
-                                <span>{u.name.split(' ')[0]}</span>
-                              </span>
-                            ))}
                           </h4>
 
                           <div className="flex items-center gap-2 my-1">
@@ -943,6 +980,7 @@ export const BoardView: React.FC = () => {
                                   className="btn-claim-subtle"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    playClickSound();
                                     claimBoardItem(card.id, card.version);
                                   }}
                                   title="Claim this task"

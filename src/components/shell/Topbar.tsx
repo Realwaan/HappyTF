@@ -19,9 +19,12 @@ import {
   Layers,
   Menu,
   Plus,
-  PanelLeft
+  PanelLeft,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
+import { isSoundEnabled, setSoundEnabled, playClickSound } from '../../lib/soundFx';
 
 interface TopbarProps {
   onOpenAuth: () => void;
@@ -54,7 +57,19 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [soundEnabled, setSoundEnabledState] = useState(true);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setSoundEnabledState(isSoundEnabled());
+  }, []);
+
+  const toggleSound = () => {
+    const next = !soundEnabled;
+    setSoundEnabledState(next);
+    setSoundEnabled(next);
+    if (next) playClickSound();
+  };
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -185,6 +200,22 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
             aria-label="Keyboard Shortcuts"
           >
             <Keyboard size={16} />
+          </button>
+
+          {/* Sound Effects Toggle */}
+          <button
+            id="topbar-sound-toggle"
+            type="button"
+            className="icon-tool-btn"
+            onClick={toggleSound}
+            title={soundEnabled ? "Mute Sound Effects" : "Enable Sound Effects"}
+            aria-label="Toggle sound effects"
+          >
+            {soundEnabled ? (
+              <Volume2 size={16} style={{ color: 'var(--primary)' }} />
+            ) : (
+              <VolumeX size={16} style={{ color: 'var(--text-muted)' }} />
+            )}
           </button>
 
           {/* Theme Toggle */}

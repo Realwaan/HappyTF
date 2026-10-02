@@ -74,21 +74,25 @@ timeline
 
 ---
 
-## Phase 4: Workflow Automation & Bidirectional External Bridges
+## Phase 4: Workflow Automation & Bidirectional Discord Bridge
 
 **Goal:** Unify team tools into an automated, zero-friction operational pipeline.
 
 ### Key Deliverables:
-1. **Two-Way Slack Bot Integration**:
-   - Slash command `/ticket claim #TK-xxxx` and interactive Slack Block Kit modals.
-   - Automatic bi-directional comment sync between Slack message threads and HappyTF tickets.
+1. **CapStoneFlow Discord Bot Integration (24 Commands)**:
+   - Slash command interaction gateway (`POST /api/integrations/discord/interactions`) with Ed25519 signature verification.
+   - 24 slash commands across Developer, QA, and PM workflows (`/claim`, `/unclaim`, `/resolved`, `/reviewed`, `/closed`, `/leaderboard`, `/rebuild-db`, etc.).
+   - Automatic bidirectional thread creation and comment synchronization with HappyTF tickets.
 2. **GitHub Pull Request Auto-Transitions**:
    - Automatically advance `#TK-xxxx` to `In Review` when a PR is opened with the ticket tag.
    - Automatically mark `#TK-xxxx` as `Done` and stamp the resolution time when the pull request merges into `main`.
+   - Dispatch CapStoneFlow Discord celebration embeds to `#tickets` and `#reminders` channels.
 3. **Configurable Automation Engine (If-This-Then-That)**:
-   - User-defined workflow rules:
+   - User-defined workflow rules (`src/lib/automation/engine.ts`):
      - *Trigger:* Priority set to `urgent`.
-     - *Action:* Set SLA to 2 hours, notify `#incident-lead` on Slack, and assign on-call engineer.
+     - *Action:* Set SLA to 2 hours, notify `#reminders` on Discord, and assign on-call engineer.
+     - *Trigger:* Status set to `Stuck`.
+     - *Action:* Dispatch blocker alert ping to Discord channel.
 
 ---
 

@@ -35,6 +35,8 @@ import {
 import { BoardItem, SubTask } from '../../types';
 import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
 import { TaskCommentSection } from './TaskCommentSection';
+import { playClickSound, playTransitionSound, playCompleteSound } from '../../lib/soundFx';
+import { RbacAuthority } from '../../lib/auth/rbac';
 
 export const ItemDetailPanel: React.FC = () => {
   const { 
@@ -52,6 +54,17 @@ export const ItemDetailPanel: React.FC = () => {
     gitHubCommits,
     recentBoards
   } = useApp();
+
+  const currentWorkspaceMember = members.find((m) => m.user_id === currentUser?.id);
+  const canDelete = selectedItem
+    ? RbacAuthority.canDeleteTicket(
+        {
+          userId: currentUser?.id || '',
+          workspaceRole: (currentWorkspaceMember?.role || 'member') as any,
+        },
+        selectedItem.assignee?.id
+      )
+    : false;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -114,6 +127,22 @@ export const ItemDetailPanel: React.FC = () => {
   const severityOptions: NonNullable<BoardItem['severity']>[] = ['critical', 'major', 'minor', 'cosmetic'];
 
   const toggleSubtask = (subtaskId: string) => {
+    const target = (selectedItem.subtasks || []).find((st) => st.id === subtaskId);
+    const willComplete = target ? !target.completed : false;
+
+    if (willComplete) {
+      const remainingIncomplete = (selectedItem.subtasks || []).filter(
+        (st) => st.id !== subtaskId && !st.completed
+      );
+      if (remainingIncomplete.length === 0) {
+        playCompleteSound();
+      } else {
+        playClickSound();
+      }
+    } else {
+      playClickSound();
+    }
+
     const updatedSubtasks = (selectedItem.subtasks || []).map((st) =>
       st.id === subtaskId ? { ...st, completed: !st.completed } : st
     );
@@ -290,6 +319,11 @@ export const ItemDetailPanel: React.FC = () => {
                         type="button"
                         className={`dropdown-option ${selectedItem.status === s.label ? 'active' : ''}`}
                         onClick={() => {
+                          if (s.label === 'Done') {
+                            playCompleteSound();
+                          } else {
+                            playTransitionSound();
+                          }
                           updateBoardItem(
                             selectedItem.id, 
                             { status: s.label, status_color: s.color }
@@ -329,6 +363,7 @@ export const ItemDetailPanel: React.FC = () => {
                         type="button"
                         className={`dropdown-option ${selectedItem.priority === p ? 'active' : ''}`}
                         onClick={() => {
+                          playTransitionSound();
                           updateBoardItem(
                             selectedItem.id, 
                             { priority: p }
@@ -701,19 +736,33 @@ export const ItemDetailPanel: React.FC = () => {
 
         {/* 3. Footer Actions */}
         <div className="drawer-footer">
-          <button
-            id="detail-delete-btn"
-            type="button"
-            className="btn btn-ghost text-danger btn-sm"
-            onClick={() => {
-              if (confirm(`Delete item "${selectedItem.title}"?`)) {
-                deleteBoardItem(selectedItem.id);
-              }
-            }}
-          >
-            <Trash2 size={14} />
-            <span>Delete Item</span>
-          </button>
+          {canDelete ? (
+            <button
+              id="detail-delete-btn"
+              type="button"
+              className="btn btn-ghost text-danger btn-sm"
+              onClick={() => {
+                if (confirm(`Delete item "${selectedItem.title}"?`)) {
+                  playClickSound();
+                  deleteBoardItem(selectedItem.id);
+                }
+              }}
+            >
+              <Trash2 size={14} />
+              <span>Delete Item</span>
+            </button>
+          ) : (
+            <button
+              id="detail-delete-btn"
+              type="button"
+              className="btn btn-ghost text-muted btn-sm opacity-50 cursor-not-allowed"
+              disabled
+              title="Only Workspace Owners, Admins, or Assignee can delete tickets (RBAC Protected)"
+            >
+              <Trash2 size={14} />
+              <span>Delete (Restricted)</span>
+            </button>
+          )}
           <span className="font-mono text-xs text-muted">ID: {selectedItem.id}</span>
         </div>
       </aside>
