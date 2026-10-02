@@ -30,7 +30,8 @@ import {
   INITIAL_BOARD_ITEMS,
   INITIAL_GITHUB_COMMITS,
   INITIAL_FOLDERS,
-  DEFAULT_BOARD_COLUMNS
+  DEFAULT_BOARD_COLUMNS,
+  getDefaultBoardGroups
 } from '../lib/mock-data';
 import { BOARD_TEMPLATES } from '../lib/boardTemplates';
 import confetti from 'canvas-confetti';
@@ -915,7 +916,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [activeBoard, currentWorkspace, workspaces]);
 
-  const currentBoardGroups = activeBoardId ? (groupsMap[activeBoardId] || []) : [];
+  const currentBoardGroups = useMemo(() => {
+    if (!activeBoardId) return [];
+    const existing = groupsMap[activeBoardId];
+    if (existing && existing.length > 0) return existing;
+    return getDefaultBoardGroups(activeBoardId);
+  }, [activeBoardId, groupsMap]);
+
+  // Auto-populate groupsMap with default workflow groups if the active board is missing groups
+  useEffect(() => {
+    if (activeBoardId && (!groupsMap[activeBoardId] || groupsMap[activeBoardId].length === 0)) {
+      setGroupsMap((prev) => {
+        if (prev[activeBoardId] && prev[activeBoardId].length > 0) return prev;
+        return {
+          ...prev,
+          [activeBoardId]: getDefaultBoardGroups(activeBoardId),
+        };
+      });
+    }
+  }, [activeBoardId, groupsMap]);
+
   const currentBoardItems = activeBoardId ? (itemsMap[activeBoardId] || []) : [];
 
   // Compile all workspace items across all boards for global memory & stats
@@ -2144,11 +2164,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       item_count: 0,
       updated_at: new Date().toISOString(),
       member_avatars: currentUser?.avatar_url ? [currentUser.avatar_url] : [],
+      columns: [...DEFAULT_BOARD_COLUMNS],
     };
 
     setBoardsMap((prev) => ({
       ...prev,
       [newWs.id]: [welcomeBoard],
+    }));
+
+    setGroupsMap((prev) => ({
+      ...prev,
+      [welcomeBoard.id]: getDefaultBoardGroups(welcomeBoard.id),
     }));
 
     // If Supabase is configured and user is authenticated, persist to real PostgreSQL tables

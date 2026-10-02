@@ -211,6 +211,14 @@ export const INITIAL_BOARDS: Record<string, BoardSummary[]> = {
   ],
 };
 
+export function getDefaultBoardGroups(boardId: string): BoardGroup[] {
+  return [
+    { id: `grp-${boardId}-todo`, board_id: boardId, name: 'To Do', color: '#6366f1', collapsed: false },
+    { id: `grp-${boardId}-progress`, board_id: boardId, name: 'In Progress', color: '#f59e0b', collapsed: false },
+    { id: `grp-${boardId}-done`, board_id: boardId, name: 'Done', color: '#10b981', collapsed: false },
+  ];
+}
+
 export const INITIAL_BOARD_GROUPS: Record<string, BoardGroup[]> = {
   'board-tickets': [
     { id: 'grp-tk-triage', board_id: 'board-tickets', name: 'Triage & Inbound', color: '#ec4899' },

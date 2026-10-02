@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getSafeAvatar } from '../../lib/avatarHelper';
+import { getDefaultBoardGroups } from '../../lib/mock-data';
 import { X, CheckSquare, Plus, AlertCircle, Calendar, User } from 'lucide-react';
 
 interface QuickCreateTaskModalProps {
@@ -12,39 +13,53 @@ interface QuickCreateTaskModalProps {
 
 export const QuickCreateTaskModal: React.FC<QuickCreateTaskModalProps> = ({ isOpen, onClose }) => {
   const { boardGroups, addBoardItem, members, activeBoard, currentUser } = useApp();
+
+  const effectiveGroups = useMemo(() => {
+    if (boardGroups && boardGroups.length > 0) return boardGroups;
+    const bId = activeBoard?.id || 'default';
+    return getDefaultBoardGroups(bId);
+  }, [boardGroups, activeBoard?.id]);
+
   const [title, setTitle] = useState('');
-  const [groupId, setGroupId] = useState(boardGroups[0]?.id || '');
+  const [groupId, setGroupId] = useState(effectiveGroups[0]?.id || '');
   const [priority, setPriority] = useState<'urgent' | 'high' | 'medium' | 'low'>('medium');
-  const [assigneeId, setAssigneeId] = useState(currentUser?.id || members[0]?.user_id || '');
+  const [assigneeId, setAssigneeId] = useState(currentUser?.id || members[0]?.user_id || members[0]?.id || '');
   const [dueDate, setDueDate] = useState('Next week');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      if (boardGroups.length > 0 && !groupId) {
-        setGroupId(boardGroups[0].id);
+      if (!groupId || !effectiveGroups.some((g) => g.id === groupId)) {
+        setGroupId(effectiveGroups[0]?.id || '');
       }
       if (currentUser?.id && !assigneeId) {
         setAssigneeId(currentUser.id);
+      } else if (!assigneeId && members.length > 0) {
+        setAssigneeId(members[0].user_id || members[0].id);
       }
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [isOpen, boardGroups, groupId, currentUser, assigneeId]);
+  }, [isOpen, effectiveGroups, groupId, currentUser, assigneeId, members]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !groupId) return;
+    const targetGroupId = groupId || effectiveGroups[0]?.id;
+    if (!title.trim() || !targetGroupId) return;
 
     const targetMember = members.find((m) => m.user_id === assigneeId || m.id === assigneeId);
     const assignee = targetMember ? {
       id: targetMember.user_id,
       name: targetMember.profile?.full_name || 'Member',
       avatar: getSafeAvatar(targetMember.profile?.avatar_url, targetMember.profile?.full_name),
-    } : undefined;
+    } : (currentUser ? {
+      id: currentUser.id,
+      name: currentUser.full_name,
+      avatar: getSafeAvatar(currentUser.avatar_url, currentUser.full_name),
+    } : undefined);
 
-    addBoardItem(groupId, title.trim(), {
+    addBoardItem(targetGroupId, title.trim(), {
       priority,
       assignee,
       due_date: dueDate || 'Next week',
@@ -95,11 +110,11 @@ export const QuickCreateTaskModal: React.FC<QuickCreateTaskModalProps> = ({ isOp
               <label htmlFor="select-group-id">Status Column</label>
               <select
                 id="select-group-id"
-                value={groupId}
+                value={groupId || effectiveGroups[0]?.id}
                 onChange={(e) => setGroupId(e.target.value)}
                 className="select-input"
               >
-                {boardGroups.map((g) => (
+                {effectiveGroups.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.name}
                   </option>
