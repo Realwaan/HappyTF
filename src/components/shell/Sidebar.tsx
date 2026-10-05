@@ -19,7 +19,11 @@ import {
   Folder,
   FolderOpen,
   FolderInput,
-  Trash2
+  Trash2,
+  MessageSquare,
+  Hash,
+  Zap,
+  BarChart3
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
 import { BoardSummary } from '../../types';
@@ -43,10 +47,16 @@ export const Sidebar: React.FC = () => {
     setWorkspaceSettingsOpen,
     setOnboardingOpen,
     setCreateBoardOpen,
+    setAutomationModalOpen,
+    automationRules,
+    setColumnarModalOpen,
+    setAiCopilotOpen,
     activeView,
     activeBoardId,
     navigateToBoard,
     navigateToHome,
+    navigateToChat,
+    activeTeamChannelId,
     setShortcutsModalOpen,
     boardViewMode,
     setBoardViewMode,
@@ -225,6 +235,22 @@ export const Sidebar: React.FC = () => {
 
           <button
             type="button"
+            id="nav-chat-link"
+            className={`nav-link ${activeView === 'chat' ? 'active' : ''}`}
+            title="Team Chat & Workspace Channels"
+            onClick={() => navigateToChat()}
+          >
+            <MessageSquare size={18} />
+            {!isSidebarCollapsed && (
+              <div className="nav-label-with-badge">
+                <span>Team Chat</span>
+                <span className="feature-pill font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Chat</span>
+              </div>
+            )}
+          </button>
+
+          <button
+            type="button"
             id="nav-templates-link"
             className="nav-link"
             title="Board Templates"
@@ -238,6 +264,104 @@ export const Sidebar: React.FC = () => {
               </div>
             )}
           </button>
+
+          <button
+            type="button"
+            id="nav-automations-link"
+            className="nav-link"
+            title="Workflow Automations & Bot"
+            onClick={() => setAutomationModalOpen(true)}
+          >
+            <Zap size={18} className="text-amber-400" />
+            {!isSidebarCollapsed && (
+              <div className="nav-label-with-badge">
+                <span>Automations</span>
+                <span className="feature-pill font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  {automationRules.filter((r) => r.enabled).length}
+                </span>
+              </div>
+            )}
+          </button>
+
+          <button
+            type="button"
+            id="nav-analytics-link"
+            className="nav-link"
+            title="Enterprise Columnar Analytics & WASM Engine"
+            onClick={() => setColumnarModalOpen(true)}
+          >
+            <BarChart3 size={18} className="text-indigo-400" />
+            {!isSidebarCollapsed && (
+              <div className="nav-label-with-badge">
+                <span>Analytics</span>
+                <span className="feature-pill font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  WASM
+                </span>
+              </div>
+            )}
+          </button>
+
+          <button
+            type="button"
+            id="nav-ai-copilot-link"
+            className="nav-link"
+            title="AI Sprint Copilot & Smart Spec Generator (⌘J)"
+            onClick={() => setAiCopilotOpen(true)}
+          >
+            <Sparkles size={18} className="text-emerald-400" />
+            {!isSidebarCollapsed && (
+              <div className="nav-label-with-badge">
+                <span>AI Copilot</span>
+                <span className="feature-pill font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  AI
+                </span>
+              </div>
+            )}
+          </button>
+        </div>
+
+        {/* Workspace Channels Section */}
+        <div className="nav-group" id="sidebar-channels-group">
+          {!isSidebarCollapsed ? (
+            <div className="nav-group-header">
+              <span className="group-title">CHANNELS</span>
+              <button
+                type="button"
+                className="icon-action-btn"
+                onClick={() => navigateToChat()}
+                title="Open Team Chat"
+              >
+                <Hash size={13} />
+              </button>
+            </div>
+          ) : (
+            <div className="nav-group-divider" />
+          )}
+
+          <div className="channels-list flex flex-col gap-0.5">
+            {[
+              { id: 'chan-general', name: 'general' },
+              { id: 'chan-eng-alerts', name: 'eng-prod-alerts' },
+              { id: 'chan-incident-triage', name: 'incident-triage' },
+              { id: 'chan-product-roadmap', name: 'product-roadmap' },
+            ].map((chan) => (
+              <button
+                key={chan.id}
+                id={`sidebar-channel-${chan.name}`}
+                type="button"
+                className={`board-nav-item ${activeView === 'chat' && activeTeamChannelId === chan.id ? 'active' : ''}`}
+                title={`#${chan.name}`}
+                onClick={() => navigateToChat(chan.id)}
+              >
+                <span className="channel-icon-wrap text-muted" style={{ display: 'flex', alignItems: 'center' }}>
+                  <Hash size={14} />
+                </span>
+                {!isSidebarCollapsed && (
+                  <span className="board-name">{chan.name}</span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Structural Hierarchy: Folders & Boards Section */}

@@ -15,6 +15,10 @@ import { QuickCreateTaskModal } from '../board/QuickCreateTaskModal';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { WorkspaceContextModal } from './WorkspaceContextModal';
 import { DiscordIntegrationModal } from '../workspace/DiscordIntegrationModal';
+import { WorkflowAutomationModal } from '../automation/WorkflowAutomationModal';
+import { ColumnarAnalyticsModal } from '../analytics/ColumnarAnalyticsModal';
+import { AiCopilotModal } from '../ai/AiCopilotModal';
+import { SmartGeneratedTicket } from '../../lib/ai/sprintCopilot';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -31,6 +35,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     setContextModalOpen,
     isDiscordModalOpen,
     setDiscordModalOpen,
+    isAutomationModalOpen,
+    setAutomationModalOpen,
+    isColumnarModalOpen,
+    setColumnarModalOpen,
+    isAiCopilotOpen,
+    setAiCopilotOpen,
+    activeBoard,
+    boardGroups,
+    boardItems,
+    members,
+    addBoardItem,
     navigateToBoard,
     joinBoard,
   } = useApp();
@@ -57,6 +72,29 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       });
     }
   }, [joinBoard]);
+
+  // Global Cmd+J / Ctrl+J shortcut to open AI Sprint Copilot
+  React.useEffect(() => {
+    const handleGlobalShortcuts = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setAiCopilotOpen(!isAiCopilotOpen);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalShortcuts);
+    return () => window.removeEventListener('keydown', handleGlobalShortcuts);
+  }, [isAiCopilotOpen, setAiCopilotOpen]);
+
+  const handleAddCopilotTickets = (tickets: SmartGeneratedTicket[]) => {
+    for (const t of tickets) {
+      addBoardItem(t.group_id, t.title, {
+        description: t.description,
+        priority: t.priority,
+        estimate_points: t.estimate_points,
+        tags: t.tags,
+      });
+    }
+  };
 
   return (
     <div className="app-shell-root" id="app-shell-container">
@@ -101,6 +139,23 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       <DiscordIntegrationModal
         isOpen={isDiscordModalOpen}
         onClose={() => setDiscordModalOpen(false)}
+      />
+      <WorkflowAutomationModal
+        isOpen={isAutomationModalOpen}
+        onClose={() => setAutomationModalOpen(false)}
+      />
+      <ColumnarAnalyticsModal
+        isOpen={isColumnarModalOpen}
+        onClose={() => setColumnarModalOpen(false)}
+      />
+      <AiCopilotModal
+        isOpen={isAiCopilotOpen}
+        onClose={() => setAiCopilotOpen(false)}
+        boardName={activeBoard?.name || 'Active Board'}
+        boardGroups={boardGroups}
+        boardItems={boardItems}
+        workspaceMembers={members}
+        onAddTickets={handleAddCopilotTickets}
       />
 
       <style jsx>{`

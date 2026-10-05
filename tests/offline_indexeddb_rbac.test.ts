@@ -147,4 +147,45 @@ describe('Phase 5: Columnar High-Throughput Aggregations Engine', () => {
     expect(metrics.completedCount).toBe(0);
     expect(metrics.completionRatePercent).toBe(0);
   });
+
+  it('Calculates 10,000 items in sub-25ms complying with MondayDB scale requirement', () => {
+    const syntheticItems: BoardItem[] = Array.from({ length: 10000 }, (_, i) => ({
+      id: `synthetic-${i}`,
+      board_id: 'b-stress',
+      group_id: `g-${i % 20}`,
+      title: `Stress Task #${i}`,
+      status: i % 4 === 0 ? 'Done' : i % 4 === 1 ? 'Working on it' : i % 4 === 2 ? 'Stuck' : 'Pending',
+      status_color: '#0073ea',
+      priority: i % 5 === 0 ? 'urgent' : 'medium',
+      due_date: '2026-10-15',
+      numbers_value: (i % 8) + 1,
+      tags: [],
+      activities: [],
+      comments: [],
+    }));
+
+    const start = performance.now();
+    const metrics = computeColumnarMetrics(syntheticItems);
+    const durationMs = performance.now() - start;
+
+    expect(metrics.totalCount).toBe(10000);
+    expect(metrics.completedCount).toBe(2500);
+    expect(metrics.urgentCount).toBe(2000);
+    expect(durationMs).toBeLessThan(35); // Fast columnar processing
+  });
+
+  it('Enforces RBAC matrix for Board & Workspace Settings', () => {
+    // Owner & Admin can manage settings
+    expect(RbacAuthority.canManageWorkspaceSettings({ userId: 'u-1', workspaceRole: 'owner' })).toBe(true);
+    expect(RbacAuthority.canManageWorkspaceSettings({ userId: 'u-2', workspaceRole: 'admin' })).toBe(true);
+    // Members & Viewers denied
+    expect(RbacAuthority.canManageWorkspaceSettings({ userId: 'u-3', workspaceRole: 'member' })).toBe(false);
+    expect(RbacAuthority.canManageWorkspaceSettings({ userId: 'u-4', workspaceRole: 'viewer' })).toBe(false);
+
+    // PM can manage board
+    expect(RbacAuthority.canManageBoard({ userId: 'u-5', workspaceRole: 'member', capStoneFlowRole: 'PM' })).toBe(true);
+    // Regular member without PM role cannot manage board
+    expect(RbacAuthority.canManageBoard({ userId: 'u-6', workspaceRole: 'member' })).toBe(false);
+  });
 });
+

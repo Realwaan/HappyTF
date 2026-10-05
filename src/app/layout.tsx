@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import '../styles/globals.css';
 import '../styles/shell.css';
 import { AppProvider } from '../context/AppContext';
+import { TeamChatProvider } from '../context/TeamChatContext';
 import { CookieConsentBanner } from '../components/common/CookieConsentBanner';
 import { AnalyticsProvider } from '../components/common/AnalyticsProvider';
 import StyledJsxRegistry from '../lib/registry';
@@ -117,9 +118,11 @@ export default function RootLayout({
         <StyledJsxRegistry>
           <AnalyticsProvider>
             <AppProvider>
-              {children}
-              <PwaRegister />
-              <CookieConsentBanner />
+              <TeamChatProvider>
+                {children}
+                <PwaRegister />
+                <CookieConsentBanner />
+              </TeamChatProvider>
             </AppProvider>
           </AnalyticsProvider>
         </StyledJsxRegistry>

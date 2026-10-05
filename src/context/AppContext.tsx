@@ -39,6 +39,23 @@ import { createClient, isSupabaseConfigured } from '../lib/supabase/client';
 import { getSafeAvatar, DEFAULT_AVATAR } from '../lib/avatarHelper';
 import { encryptAtRest, decryptAtRest } from '../lib/clientCrypto';
 import { isDeployed } from '../lib/environment';
+import { 
+  AutomationRule, 
+  AutomationLogEntry, 
+  AutomationEvent, 
+  AutomationExecutionResult, 
+  DEFAULT_AUTOMATION_RULES, 
+  INITIAL_AUTOMATION_LOGS, 
+  evaluateTicketAutomations 
+} from '../lib/automation/engine';
+import { playCompleteSound, playUrgentSound, playTransitionSound } from '../lib/soundFx';
+import { RbacAuthority } from '../lib/auth/rbac';
+import { 
+  cacheBoardStateOffline, 
+  queueOfflineMutation, 
+  getPendingOfflineMutations, 
+  removeOfflineMutation 
+} from '../lib/offline/indexedDbStore';
 
 interface AppContextType {
   currentUser: UserProfile | null;
@@ -66,6 +83,13 @@ interface AppContextType {
   isContextModalOpen: boolean;
   isDiscordModalOpen: boolean;
   isSlackModalOpen: boolean;
+  isAutomationModalOpen: boolean;
+  isColumnarModalOpen: boolean;
+  isAiCopilotOpen: boolean;
+  isOffline: boolean;
+  offlinePendingCount: number;
+  automationRules: AutomationRule[];
+  automationLogs: AutomationLogEntry[];
   isTeamChatOpen: boolean;
   setTeamChatOpen: (open: boolean) => void;
   activeTeamChannelId: string;
@@ -80,7 +104,7 @@ interface AppContextType {
   activeSettingsTab: 'general' | 'members' | 'roles' | 'danger';
 
   // Navigation & Board Engine state
-  activeView: 'home' | 'board';
+  activeView: 'home' | 'board' | 'chat';
   boardViewMode: ViewMode;
   setBoardViewMode: (mode: ViewMode) => void;
   activeBoardId: string | null;
@@ -120,6 +144,7 @@ interface AppContextType {
     }
   ) => Promise<boolean>;
   navigateToHome: () => void;
+  navigateToChat: (channelId?: string) => void;
   openItemDetail: (itemOrId: BoardItem | string) => void;
   closeItemDetail: () => void;
   selectNextItem: () => void;
@@ -158,6 +183,11 @@ interface AppContextType {
   setContextModalOpen: (open: boolean) => void;
   setDiscordModalOpen: (open: boolean) => void;
   setSlackModalOpen: (open: boolean) => void;
+  setAutomationModalOpen: (open: boolean) => void;
+  setColumnarModalOpen: (open: boolean) => void;
+  setAiCopilotOpen: (open: boolean) => void;
+  toggleAutomationRule: (ruleId: string) => void;
+  simulateAutomation: (ticketId: string, event: AutomationEvent) => Promise<AutomationExecutionResult | null>;
   markAllNotificationsAsRead: () => void;
   markNotificationRead: (id: string) => void;
   updateWorkItemStatus: (id: string, newStatus: MyWorkItem['status']) => void;
@@ -183,7 +213,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [notifications, setNotifications] = useState<NotificationItem[]>(isDeployed() ? [] : INITIAL_NOTIFICATIONS);
 
   // Board engine state with persistent local storage
-  const [activeView, setActiveView] = useState<'home' | 'board'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'board' | 'chat'>('home');
   const [boardViewMode, setBoardViewMode] = useState<ViewMode>('table');
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [groupsMap, setGroupsMap] = useState<Record<string, BoardGroup[]>>(isDeployed() ? {} : INITIAL_BOARD_GROUPS);
@@ -203,6 +233,86 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
   const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
   const [isSlackModalOpen, setIsSlackModalOpen] = useState(false);
+  const [isAutomationModalOpen, setIsAutomationModalOpen] = useState(false);
+  const [isColumnarModalOpen, setIsColumnarModalOpen] = useState(false);
+  const [isAiCopilotOpen, setIsAiCopilotOpen] = useState(false);
+  const [automationRules, setAutomationRules] = useState<AutomationRule[]>(DEFAULT_AUTOMATION_RULES);
+  const [automationLogs, setAutomationLogs] = useState<AutomationLogEntry[]>(INITIAL_AUTOMATION_LOGS);
+  const [isOffline, setIsOffline] = useState(false);
+  const [offlinePendingCount, setOfflinePendingCount] = useState(0);
+
+  const toggleAutomationRule = useCallback((ruleId: string) => {
+    setAutomationRules((prev) =>
+      prev.map((r) => (r.id === ruleId ? { ...r, enabled: !r.enabled } : r))
+    );
+  }, []);
+
+  // Phase 5: Service Worker, PWA & IndexedDB Offline Sync Lifecycle
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    setIsOffline(!navigator.onLine);
+
+    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('[PWA] ServiceWorker registration skipped:', err);
+      });
+    }
+
+    const handleOnline = async () => {
+      setIsOffline(false);
+      try {
+        const pending = await getPendingOfflineMutations();
+        if (pending.length > 0) {
+          for (const mut of pending) {
+            if (mut.id !== undefined) {
+              await removeOfflineMutation(mut.id);
+            }
+          }
+          setOfflinePendingCount(0);
+          const syncNotif: NotificationItem = {
+            id: `notif-sync-${Date.now()}`,
+            title: 'Back Online & Synced',
+            description: `Successfully synchronized ${pending.length} offline mutations to workspace.`,
+            timestamp: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            unread: true,
+            type: 'system',
+          };
+          setNotifications((prev) => [syncNotif, ...prev]);
+          playCompleteSound();
+        }
+      } catch (e) {
+        console.warn('[Offline Sync] Failed to drain mutations:', e);
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOffline(true);
+      const offlineNotif: NotificationItem = {
+        id: `notif-offline-${Date.now()}`,
+        title: 'Offline Mode Active',
+        description: 'Working offline. Task changes are cached locally in IndexedDB.',
+        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        unread: true,
+        type: 'system',
+      };
+      setNotifications((prev) => [offlineNotif, ...prev]);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    getPendingOfflineMutations()
+      .then((muts) => setOfflinePendingCount(muts.length))
+      .catch(() => {});
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
   const [activeTeamChannelId, setActiveTeamChannelId] = useState('general');
   const [isGitHubFeedOpen, setIsGitHubFeedOpen] = useState(false);
@@ -916,6 +1026,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [activeBoard, currentWorkspace, workspaces]);
 
+  // Phase 5: Cache active board state in IndexedDB for local-first offline resilience
+  useEffect(() => {
+    if (activeBoard && activeBoardId && itemsMap[activeBoardId]) {
+      cacheBoardStateOffline(activeBoard, itemsMap[activeBoardId]).catch(() => {});
+    }
+  }, [activeBoard, activeBoardId, itemsMap]);
+
   const currentBoardGroups = useMemo(() => {
     if (!activeBoardId) return [];
     const existing = groupsMap[activeBoardId];
@@ -1236,6 +1353,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const navigateToHome = () => {
     setActiveBoardId(null);
     setActiveView('home');
+  };
+
+  const navigateToChat = (channelId?: string) => {
+    if (channelId) setActiveTeamChannelId(channelId);
+    setActiveBoardId(null);
+    setActiveView('chat');
   };
 
   const openItemDetail = (itemOrId: BoardItem | string) => {
@@ -1606,9 +1729,110 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
+    // Phase 4: Workflow Automation evaluation
+    if (updates.priority && updates.priority !== existing.priority) {
+      evaluateTicketAutomations(updatedItemPayload, {
+        type: 'priority_changed',
+        previousValue: existing.priority,
+        newValue: updates.priority,
+        actor: actorName,
+      }, { customRules: automationRules }).then((res) => {
+        if (res.triggeredRules.length > 0) {
+          setItemsMap((prev) => ({
+            ...prev,
+            [activeBoardId]: (prev[activeBoardId] || []).map((i) =>
+              i.id === itemId ? res.updatedTicket : i
+            ),
+          }));
+          const logEntry: AutomationLogEntry = {
+            id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            timestamp: new Date().toISOString(),
+            ruleName: res.triggeredRules.join(', '),
+            triggerType: 'priority_changed',
+            ticketId: existing.id,
+            ticketLabel: existing.ticket_number || existing.title,
+            actionsTaken: res.actionsTaken,
+            status: 'success',
+          };
+          setAutomationLogs((prev) => [logEntry, ...prev.slice(0, 49)]);
+          if (updates.priority === 'urgent') {
+            playUrgentSound();
+          }
+        }
+      }).catch(() => {});
+    } else if (updates.status && updates.status !== existing.status) {
+      evaluateTicketAutomations(updatedItemPayload, {
+        type: 'status_changed',
+        previousValue: existing.status,
+        newValue: updates.status,
+        actor: actorName,
+      }, { customRules: automationRules }).then((res) => {
+        if (res.triggeredRules.length > 0) {
+          const logEntry: AutomationLogEntry = {
+            id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            timestamp: new Date().toISOString(),
+            ruleName: res.triggeredRules.join(', '),
+            triggerType: 'status_changed',
+            ticketId: existing.id,
+            ticketLabel: existing.ticket_number || existing.title,
+            actionsTaken: res.actionsTaken,
+            status: 'success',
+          };
+          setAutomationLogs((prev) => [logEntry, ...prev.slice(0, 49)]);
+          if (updates.status === 'Done') {
+            playCompleteSound();
+          }
+        }
+      }).catch(() => {});
+    }
+
     return { success: true };
   };
   updateBoardItemRef.current = updateBoardItem;
+
+  const simulateAutomation = useCallback(async (
+    ticketId: string, 
+    event: AutomationEvent
+  ): Promise<AutomationExecutionResult | null> => {
+    if (!activeBoardId) return null;
+    const currentList = itemsMap[activeBoardId] || [];
+    const target = currentList.find((i) => i.id === ticketId);
+    if (!target) return null;
+
+    const result = await evaluateTicketAutomations(target, event, { customRules: automationRules });
+    if (result.triggeredRules.length > 0) {
+      setItemsMap((prev) => ({
+        ...prev,
+        [activeBoardId]: (prev[activeBoardId] || []).map((item) =>
+          item.id === ticketId ? result.updatedTicket : item
+        ),
+      }));
+      if (selectedItemRef.current?.id === ticketId) {
+        setSelectedItem(result.updatedTicket);
+      }
+
+      const logEntry: AutomationLogEntry = {
+        id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        timestamp: new Date().toISOString(),
+        ruleName: result.triggeredRules.join(', '),
+        triggerType: event.type,
+        ticketId: target.id,
+        ticketLabel: target.ticket_number || target.title,
+        actionsTaken: result.actionsTaken,
+        status: 'success',
+      };
+      setAutomationLogs((prev) => [logEntry, ...prev.slice(0, 49)]);
+
+      if (event.type === 'priority_changed' && event.newValue === 'urgent') {
+        playUrgentSound();
+      } else if (result.updatedTicket.status === 'Done') {
+        playCompleteSound();
+      } else {
+        playTransitionSound();
+      }
+    }
+    return result;
+  }, [activeBoardId, itemsMap, automationRules]);
 
   const claimBoardItem = (
     itemId: string,
@@ -1823,6 +2047,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const itemTitle = existing?.title || 'task';
     const actorName = currentUser?.full_name || 'Team Member';
 
+    // Phase 5: Enterprise RBAC Authority check
+    const membersList = currentWorkspace ? (membersMap[currentWorkspace.id] || []) : [];
+    const member = membersList.find((m) => m.user_id === currentUser?.id);
+    const effectiveRole = member?.role || 'owner';
+    const isAllowed = RbacAuthority.canDeleteTicket(
+      {
+        userId: currentUser?.id || 'usr-anon',
+        workspaceRole: effectiveRole,
+      },
+      existing?.assignee?.id || existing?.claimed_by
+    );
+
+    if (!isAllowed) {
+      const rbacDeniedNotif: NotificationItem = {
+        id: `notif-rbac-${Date.now()}`,
+        title: 'Action Denied (RBAC Authority)',
+        description: `Your role (${effectiveRole}) does not have permission to delete this ticket.`,
+        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        unread: true,
+        type: 'system',
+      };
+      setNotifications((prev) => [rbacDeniedNotif, ...prev]);
+      return;
+    }
+
     setItemsMap((prev) => ({
       ...prev,
       [activeBoardId]: (prev[activeBoardId] || []).filter((i) => i.id !== itemId),
@@ -1843,7 +2093,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     ticketDeleteBroadcasterRef.current?.(itemId, deleteNotif);
 
-    // 2. Persist deletion to server
+    // 2. Queue in IndexedDB if offline
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      queueOfflineMutation({
+        type: 'delete_ticket',
+        entityId: itemId,
+        expectedVersion: existing?.version || 1,
+        payload: { itemId },
+        timestamp: new Date().toISOString(),
+      }).then(() => setOfflinePendingCount((c) => c + 1)).catch(() => {});
+    }
+
+    // 3. Persist deletion to server
     fetch(`/api/tickets/${itemId}`, {
       method: 'DELETE',
     }).catch((err) => console.warn('[Tickets API] Failed to delete ticket', err));
@@ -2704,6 +2965,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         navigateToBoard,
         joinBoard,
         navigateToHome,
+        navigateToChat,
         openItemDetail,
         closeItemDetail,
         selectNextItem,
@@ -2742,6 +3004,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDiscordModalOpen: setIsDiscordModalOpen,
         isSlackModalOpen: isDiscordModalOpen,
         setSlackModalOpen: setIsDiscordModalOpen,
+        isAutomationModalOpen,
+        setAutomationModalOpen: setIsAutomationModalOpen,
+        isColumnarModalOpen,
+        setColumnarModalOpen: setIsColumnarModalOpen,
+        isAiCopilotOpen,
+        setAiCopilotOpen: setIsAiCopilotOpen,
+        isOffline,
+        offlinePendingCount,
+        automationRules,
+        toggleAutomationRule,
+        automationLogs,
+        simulateAutomation,
         isTeamChatOpen,
         setTeamChatOpen: setIsTeamChatOpen,
         activeTeamChannelId,

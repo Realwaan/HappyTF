@@ -29,6 +29,7 @@ export interface WorkspaceMember {
   role: WorkspaceRole;
   joined_at: string;
   profile?: UserProfile;
+  user?: { id: string; full_name?: string; email?: string };
 }
 
 export interface WorkspaceInvite {
@@ -151,7 +152,9 @@ export interface BoardGroup {
   id: string;
   board_id: string;
   name: string;
+  title?: string;
   color: string;
+  position?: number;
   collapsed?: boolean;
 }
 
@@ -256,6 +259,7 @@ export interface BoardItem {
   subtasks?: SubTask[];
   sub_items?: import('../lib/mondaydb/types').SubItem[];
   numbers_value?: number;
+  estimate_points?: number;
   custom_values?: Record<string, string | number | boolean>;
   description?: string;
   activities: ItemActivity[];

@@ -24,7 +24,14 @@ import {
   VolumeX
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
-import { isSoundEnabled, setSoundEnabled, playClickSound } from '../../lib/soundFx';
+import { 
+  isSoundEnabled, 
+  setSoundEnabled, 
+  playClickSound,
+  playTransitionSound,
+  playCompleteSound,
+  playUrgentSound
+} from '../../lib/soundFx';
 
 interface TopbarProps {
   onOpenAuth: () => void;
@@ -57,8 +64,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isSoundPopoverOpen, setIsSoundPopoverOpen] = useState(false);
   const [soundEnabled, setSoundEnabledState] = useState(true);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+  const soundPopoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSoundEnabledState(isSoundEnabled());
@@ -73,8 +82,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as HTMLElement;
+      if (profileMenuRef.current && !profileMenuRef.current.contains(target as Node)) {
         setIsProfileMenuOpen(false);
+      }
+      if (soundPopoverRef.current && !soundPopoverRef.current.contains(target as Node) && !target.closest('#topbar-sound-toggle')) {
+        setIsSoundPopoverOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutside);
@@ -202,21 +215,113 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
             <Keyboard size={16} />
           </button>
 
-          {/* Sound Effects Toggle */}
-          <button
-            id="topbar-sound-toggle"
-            type="button"
-            className="icon-tool-btn"
-            onClick={toggleSound}
-            title={soundEnabled ? "Mute Sound Effects" : "Enable Sound Effects"}
-            aria-label="Toggle sound effects"
-          >
-            {soundEnabled ? (
-              <Volume2 size={16} style={{ color: 'var(--primary)' }} />
-            ) : (
-              <VolumeX size={16} style={{ color: 'var(--text-muted)' }} />
+          {/* Sound Effects Toggle & Preferences Popover */}
+          <div className="sound-anchor" ref={soundPopoverRef}>
+            <button
+              id="topbar-sound-toggle"
+              type="button"
+              className="icon-tool-btn"
+              onClick={() => setIsSoundPopoverOpen(!isSoundPopoverOpen)}
+              title="Sound & Haptic Preferences"
+              aria-label="Sound & Haptic Preferences"
+            >
+              {soundEnabled ? (
+                <Volume2 size={16} style={{ color: 'var(--primary)' }} />
+              ) : (
+                <VolumeX size={16} style={{ color: 'var(--text-muted)' }} />
+              )}
+            </button>
+
+            {isSoundPopoverOpen && (
+              <div 
+                className="sound-settings-popover glass-panel animate-pop-in" 
+                id="sound-settings-popover"
+              >
+                <div className="sound-popover-header">
+                  <div className="flex items-center gap-2">
+                    <Volume2 size={14} className="text-primary" />
+                    <span className="font-semibold text-xs text-primary-light uppercase tracking-wider">Audio & Haptics</span>
+                  </div>
+                  <span className={`status-pill font-mono text-[10px] ${soundEnabled ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-400 bg-slate-800'}`}>
+                    {soundEnabled ? 'ACTIVE' : 'MUTED'}
+                  </span>
+                </div>
+
+                <div className="sound-master-row">
+                  <div className="sound-info">
+                    <span className="sound-title">Sound Effects</span>
+                    <span className="sound-desc">Subtle tactile clicks and milestone fanfares</span>
+                  </div>
+                  <button
+                    id="sound-master-switch-btn"
+                    type="button"
+                    className={`sound-switch-toggle ${soundEnabled ? 'active' : ''}`}
+                    onClick={toggleSound}
+                    aria-label="Toggle all sound effects"
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+
+                <div className="sound-divider" />
+
+                <div className="sound-test-section">
+                  <span className="sound-section-label">Preview Sound Effects</span>
+                  <div className="sound-test-grid">
+                    <button
+                      id="sound-test-click-btn"
+                      type="button"
+                      className="sound-test-chip"
+                      onClick={() => playClickSound()}
+                      title="Mechanical tactile click"
+                    >
+                      <span>Click</span>
+                      <kbd className="font-mono text-[9px]">440Hz</kbd>
+                    </button>
+                    <button
+                      id="sound-test-transition-btn"
+                      type="button"
+                      className="sound-test-chip"
+                      onClick={() => playTransitionSound()}
+                      title="Status transition chord"
+                    >
+                      <span>Transition</span>
+                      <kbd className="font-mono text-[9px]">E4-A4</kbd>
+                    </button>
+                    <button
+                      id="sound-test-complete-btn"
+                      type="button"
+                      className="sound-test-chip"
+                      onClick={() => playCompleteSound()}
+                      title="Sprint milestone fanfare"
+                    >
+                      <span>Complete</span>
+                      <kbd className="font-mono text-[9px]">C5-C6</kbd>
+                    </button>
+                    <button
+                      id="sound-test-urgent-btn"
+                      type="button"
+                      className="sound-test-chip sound-urgent-chip"
+                      onClick={() => playUrgentSound()}
+                      title="Urgent alert buzzer"
+                    >
+                      <span>Urgent</span>
+                      <kbd className="font-mono text-[9px]">D5-A4</kbd>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="sound-divider" />
+
+                <div className="sound-haptics-status">
+                  <div className="haptics-indicator-dot" />
+                  <span className="text-[11px] text-muted">
+                    Haptics: <strong>Active</strong> (10-30ms pulse on mobile)
+                  </span>
+                </div>
+              </div>
             )}
-          </button>
+          </div>
 
           {/* Theme Toggle */}
           <button
@@ -569,8 +674,153 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
           justify-content: center;
         }
 
-        .notifications-anchor, .profile-anchor {
+        .notifications-anchor, .profile-anchor, .sound-anchor {
           position: relative;
+        }
+
+        .sound-settings-popover {
+          position: absolute;
+          top: calc(100% + 10px);
+          right: 0;
+          width: 290px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-default);
+          border-radius: 14px;
+          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+          z-index: 1000;
+          padding: 14px;
+        }
+
+        .sound-popover-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+
+        .sound-master-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .sound-info {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .sound-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .sound-desc {
+          font-size: 11px;
+          color: var(--text-muted);
+          line-height: 1.3;
+          margin-top: 2px;
+        }
+
+        .sound-switch-toggle {
+          width: 38px;
+          height: 22px;
+          border-radius: 12px;
+          background: var(--border-subtle);
+          border: 1px solid var(--border-default);
+          position: relative;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+          flex-shrink: 0;
+          padding: 2px;
+        }
+        .sound-switch-toggle.active {
+          background: var(--primary);
+          border-color: var(--primary);
+        }
+
+        .switch-thumb {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #ffffff;
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          transition: transform var(--transition-fast);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .sound-switch-toggle.active .switch-thumb {
+          transform: translateX(16px);
+        }
+
+        .sound-divider {
+          height: 1px;
+          background: var(--border-subtle);
+          margin: 12px 0;
+        }
+
+        .sound-test-section {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .sound-section-label {
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-secondary);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .sound-test-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 6px;
+        }
+
+        .sound-test-chip {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 6px 10px;
+          border-radius: 8px;
+          background: var(--bg-subtle);
+          border: 1px solid var(--border-subtle);
+          color: var(--text-primary);
+          font-size: 11px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+        }
+        .sound-test-chip:hover {
+          background: var(--bg-hover);
+          border-color: var(--primary);
+          transform: translateY(-1px);
+        }
+        .sound-test-chip:active {
+          transform: scale(0.97);
+        }
+
+        .sound-urgent-chip:hover {
+          border-color: #ef4444;
+        }
+
+        .sound-haptics-status {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 4px 2px;
+        }
+
+        .haptics-indicator-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--success);
+          box-shadow: 0 0 6px var(--success);
         }
 
         .user-profile-btn {

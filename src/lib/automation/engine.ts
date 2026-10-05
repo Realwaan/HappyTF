@@ -212,3 +212,37 @@ export async function evaluateTicketAutomations(
     actionsTaken,
   };
 }
+
+export interface AutomationLogEntry {
+  id: string;
+  timestamp: string;
+  ruleName: string;
+  triggerType: AutomationTriggerType;
+  ticketId: string;
+  ticketLabel: string;
+  actionsTaken: string[];
+  status: 'success' | 'failed';
+}
+
+export const INITIAL_AUTOMATION_LOGS: AutomationLogEntry[] = [
+  {
+    id: 'log-seed-1',
+    timestamp: new Date(Date.now() - 12 * 60000).toISOString(),
+    ruleName: 'GitHub PR Auto In-Review',
+    triggerType: 'pr_opened',
+    ticketId: 'item-2',
+    ticketLabel: '#TK-2839',
+    actionsTaken: ['Transitioned status to "In Review"', 'Dispatched Discord alert to channel #tickets'],
+    status: 'success',
+  },
+  {
+    id: 'log-seed-2',
+    timestamp: new Date(Date.now() - 45 * 60000).toISOString(),
+    ruleName: 'Urgent SLA Escalation & Discord Alert',
+    triggerType: 'priority_changed',
+    ticketId: 'item-1',
+    ticketLabel: '#TK-1092',
+    actionsTaken: ['Set SLA deadline to 2h from now', 'Dispatched Discord alert to channel #reminders'],
+    status: 'success',
+  },
+];

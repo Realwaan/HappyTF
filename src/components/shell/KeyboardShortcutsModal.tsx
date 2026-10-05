@@ -32,6 +32,7 @@ export const KeyboardShortcutsModal: React.FC = () => {
     {
       name: 'Creation & Quick Actions',
       shortcuts: [
+        { keys: ['⌘', 'J'], desc: 'Open AI Sprint Copilot & Smart Spec Generator' },
         { keys: ['C'], desc: 'Quick create new issue / task' },
         { keys: ['B'], desc: 'Create new board modal' },
         { keys: ['M'], desc: 'Inspect Workspace Memory & Context (/profile, /areas, /people)' },

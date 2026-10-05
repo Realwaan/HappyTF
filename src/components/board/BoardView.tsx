@@ -35,7 +35,10 @@ import {
   Users,
   Radio,
   X,
-  Bot
+  Bot,
+  Zap,
+  BarChart3,
+  WifiOff
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
 import { useRealtimeTickets } from '../../lib/supabase/useRealtimeTickets';
@@ -67,6 +70,12 @@ export const BoardView: React.FC = () => {
     toggleGroupCollapse, 
     navigateToHome,
     setDiscordModalOpen,
+    setAutomationModalOpen,
+    automationRules,
+    setColumnarModalOpen,
+    setAiCopilotOpen,
+    isOffline,
+    offlinePendingCount,
     gitHubCommits,
     toggleGitHubFeed,
     claimBoardItem,
@@ -159,6 +168,9 @@ export const BoardView: React.FC = () => {
     isDeployed() ? {} : { 'item-tk-1': true }
   );
 
+  const [isPresencePopoverOpen, setIsPresencePopoverOpen] = useState(false);
+  const presencePopoverRef = useRef<HTMLDivElement>(null);
+
   const focusedTeammatesByItem = useMemo(() => {
     const map = new Map<string, (typeof onlineUsers)[0]>();
     onlineUsers.forEach((u) => {
@@ -174,15 +186,17 @@ export const BoardView: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!activeInlineStatusId) return;
-    const handleOutsideClick = (e: MouseEvent) => {
+    const handleOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.dropdown-popover') && !target.closest('.status-badge')) {
+      if (activeInlineStatusId && !target.closest('.dropdown-popover') && !target.closest('.status-badge')) {
         setActiveInlineStatusId(null);
       }
+      if (presencePopoverRef.current && !presencePopoverRef.current.contains(target as Node) && !target.closest('#collaborator-avatar-stack') && !target.closest('#realtime-status-pill')) {
+        setIsPresencePopoverOpen(false);
+      }
     };
-    window.addEventListener('click', handleOutsideClick);
-    return () => window.removeEventListener('click', handleOutsideClick);
+    window.addEventListener('click', handleOutside);
+    return () => window.removeEventListener('click', handleOutside);
   }, [activeInlineStatusId]);
 
   const handleAddInlineItem = (groupId: string) => {
@@ -410,10 +424,12 @@ export const BoardView: React.FC = () => {
           <div className="board-meta-right flex items-center gap-2.5">
             {/* Realtime Status Badge with Online Count */}
             <div
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono"
-              title="Realtime sync status"
+              id="realtime-status-pill"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono cursor-pointer hover:bg-emerald-500/20 transition-colors"
+              title="Click to view live collaborators"
+              onClick={() => setIsPresencePopoverOpen((prev) => !prev)}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span>{isRealtimeConnected || onlineUsers.length > 0 ? `${Math.max(1, onlineUsers.length)} Online` : 'Sync Ready'}</span>
             </div>
 
@@ -444,11 +460,65 @@ export const BoardView: React.FC = () => {
               <span>CapStoneFlow Bot</span>
             </button>
 
+            <button
+              id="open-automations-modal-btn"
+              type="button"
+              className="btn btn-secondary btn-sm flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+              onClick={() => setAutomationModalOpen(true)}
+              title="Configure IFTTT Automations & Workflow Triggers"
+            >
+              <Zap size={13} className="text-amber-400" />
+              <span>Automate</span>
+              <span className="ml-1 px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px]">
+                {automationRules.filter((r) => r.enabled).length}
+              </span>
+            </button>
+
+            <button
+              id="open-columnar-analytics-btn"
+              type="button"
+              className="btn btn-secondary btn-sm flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+              onClick={() => setColumnarModalOpen(true)}
+              title="Enterprise Columnar Analytics & WASM Benchmark Engine"
+            >
+              <BarChart3 size={13} className="text-indigo-400" />
+              <span>Analytics</span>
+              <span className="ml-1 px-1.5 py-0.2 rounded-full bg-indigo-500/20 text-indigo-300 font-mono text-[10px]">
+                WASM
+              </span>
+            </button>
+
+            <button
+              id="open-ai-copilot-btn"
+              type="button"
+              className="btn btn-secondary btn-sm flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+              onClick={() => setAiCopilotOpen(true)}
+              title="AI Sprint Copilot & Smart Spec Generator (⌘J)"
+            >
+              <Sparkles size={13} className="text-emerald-400" />
+              <span>AI Copilot</span>
+              <span className="ml-1 px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px]">
+                ⌘J
+              </span>
+            </button>
+
+            {isOffline && (
+              <div 
+                id="offline-status-pill"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono"
+                title="Working offline. Task changes are cached in IndexedDB."
+              >
+                <WifiOff size={12} />
+                <span>Offline{offlinePendingCount > 0 ? ` (${offlinePendingCount})` : ''}</span>
+              </div>
+            )}
+
             {/* Realtime Active Collaborators Avatar Stack */}
             <div 
-              className="avatar-stack flex items-center cursor-pointer ml-1"
-              onClick={() => setInviteModalOpen(true)}
-              title="Active collaborators (click to manage)"
+              id="collaborator-avatar-stack"
+              className="avatar-stack flex items-center cursor-pointer ml-1 relative"
+              onClick={() => setIsPresencePopoverOpen((prev) => !prev)}
+              title="Active collaborators (click to view details)"
             >
               {onlineUsers.length > 0 ? (
                 onlineUsers.map((user, i) => (
@@ -470,6 +540,93 @@ export const BoardView: React.FC = () => {
                 activeBoard.member_avatars?.map((av, i) => (
                   <img key={i} src={getSafeAvatar(av)} alt={`Collaborator ${i + 1}`} className="stacked-avatar" style={{ zIndex: 10 - i }} />
                 ))
+              )}
+
+              {/* Live Collaborator Presence Popover */}
+              {isPresencePopoverOpen && (
+                <div 
+                  className="collaborator-presence-popover glass-panel animate-pop-in"
+                  id="collaborator-presence-popover"
+                  ref={presencePopoverRef}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="presence-popover-header">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <h4 className="presence-popover-title">Active Collaborators ({onlineUsers.length})</h4>
+                    </div>
+                    <button 
+                      type="button" 
+                      className="presence-close-btn"
+                      onClick={() => setIsPresencePopoverOpen(false)}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  <div className="presence-users-list">
+                    {onlineUsers.map((user) => (
+                      <div key={user.id} className="presence-user-row">
+                        <div className="presence-avatar-wrap">
+                          <img 
+                            src={getSafeAvatar(user.avatar, user.name)} 
+                            alt={user.name} 
+                            className="presence-avatar" 
+                            style={{ borderColor: user.color || '#3ecf8e' }}
+                          />
+                          <span className="presence-dot" style={{ backgroundColor: user.color || '#3ecf8e' }} />
+                        </div>
+                        <div className="presence-info-col">
+                          <div className="presence-name-row">
+                            <span className="presence-user-name">{user.name}</span>
+                            <span className="presence-user-role font-mono">{user.role}</span>
+                          </div>
+                          {user.activeItemId ? (
+                            <div className="presence-focus-row">
+                              <Eye size={11} className="text-emerald-400" />
+                              <span className="presence-focus-text truncate">
+                                Viewing: {user.activeItemTitle || user.activeItemId}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="presence-idle-text font-mono">● Active on board</span>
+                          )}
+                        </div>
+
+                        {user.activeItemId && (
+                          <button
+                            type="button"
+                            className="presence-inspect-btn"
+                            onClick={() => {
+                              const target = boardItems.find((i) => i.id === user.activeItemId);
+                              if (target) {
+                                openItemDetail(target);
+                                setIsPresencePopoverOpen(false);
+                              }
+                            }}
+                            title="Inspect teammate active task"
+                          >
+                            <Eye size={12} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="presence-popover-footer">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm w-full flex items-center justify-center gap-1.5"
+                      onClick={() => {
+                        setIsPresencePopoverOpen(false);
+                        setInviteModalOpen(true);
+                      }}
+                    >
+                      <UserPlus size={13} />
+                      <span>Invite Collaborators</span>
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -1215,6 +1372,150 @@ export const BoardView: React.FC = () => {
           color: var(--text-primary);
           font-size: 12px;
           cursor: pointer;
+        }
+
+        .collaborator-presence-popover {
+          position: absolute;
+          top: calc(100% + 10px);
+          right: 0;
+          width: 330px;
+          border-radius: 14px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-default);
+          box-shadow: 0 20px 48px rgba(0, 0, 0, 0.7);
+          z-index: 1000;
+          overflow: hidden;
+        }
+
+        .presence-popover-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          border-bottom: 1px solid var(--border-subtle);
+          background: var(--bg-subtle);
+        }
+
+        .presence-popover-title {
+          font-size: 13px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .presence-close-btn {
+          color: var(--text-muted);
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          padding: 2px;
+        }
+
+        .presence-users-list {
+          padding: 8px 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          max-height: 280px;
+          overflow-y: auto;
+        }
+
+        .presence-user-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 10px;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid var(--border-subtle);
+        }
+
+        .presence-avatar-wrap {
+          position: relative;
+          width: 32px;
+          height: 32px;
+          flex-shrink: 0;
+        }
+
+        .presence-avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 1.5px solid var(--border-subtle);
+        }
+
+        .presence-dot {
+          position: absolute;
+          bottom: -1px;
+          right: -1px;
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          border: 1.5px solid var(--bg-surface);
+        }
+
+        .presence-info-col {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .presence-name-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .presence-user-name {
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+
+        .presence-user-role {
+          font-size: 10px;
+          color: var(--text-muted);
+        }
+
+        .presence-focus-row {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .presence-focus-text {
+          font-size: 11px;
+          color: var(--text-secondary);
+        }
+
+        .presence-idle-text {
+          font-size: 10px;
+          color: var(--primary);
+        }
+
+        .presence-inspect-btn {
+          color: var(--primary);
+          background: rgba(62, 207, 142, 0.1);
+          border: 1px solid rgba(62, 207, 142, 0.25);
+          border-radius: 6px;
+          padding: 5px 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all var(--transition-fast);
+        }
+        .presence-inspect-btn:hover {
+          background: rgba(62, 207, 142, 0.2);
+        }
+
+        .presence-popover-footer {
+          padding: 10px 14px;
+          border-top: 1px solid var(--border-subtle);
+          background: var(--bg-subtle);
         }
 
         /* Table View */
