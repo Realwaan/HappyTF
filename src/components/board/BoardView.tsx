@@ -51,6 +51,7 @@ import { SubItemsTable } from './SubItemsTable';
 import { TimelineView } from './TimelineView';
 import { DashboardWidgetsView } from './DashboardWidgetsView';
 import { InviteCollaboratorsModal } from './InviteCollaboratorsModal';
+import { KanbanBoard } from './KanbanBoard';
 
 export const BoardView: React.FC = () => {
   const { 
@@ -82,6 +83,7 @@ export const BoardView: React.FC = () => {
     onTicketDelete,
     registerTicketBroadcaster,
     registerTicketBroadcasters,
+    setQuickTaskOpen,
   } = useApp();
 
   const [isInviteModalOpen, setInviteModalOpen] = useState(false);
@@ -153,8 +155,6 @@ export const BoardView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [newRowTitle, setNewRowTitle] = useState<Record<string, string>>({});
   const [activeInlineStatusId, setActiveInlineStatusId] = useState<string | null>(null);
-  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [expandedSubItems, setExpandedSubItems] = useState<Record<string, boolean>>(
     isDeployed() ? {} : { 'item-tk-1': true }
   );
@@ -190,6 +190,25 @@ export const BoardView: React.FC = () => {
     if (!title) return;
     addBoardItem(groupId, title);
     setNewRowTitle((prev) => ({ ...prev, [groupId]: '' }));
+  };
+
+  const handleLoadSprintTemplate = () => {
+    playTransitionSound();
+    const primaryGroupId = boardGroups[0]?.id || 'group-1';
+    const templateTasks = [
+      'Set up Supabase Row-Level Security policies',
+      'Implement OCC v2 with monotonic versioning',
+      'Configure Upstash Redis rate limiting buffer',
+      'Verify GitHub PR HMAC SHA-256 transitions',
+    ];
+    templateTasks.forEach((title, idx) => {
+      setTimeout(() => {
+        addBoardItem(primaryGroupId, title);
+        if (idx === templateTasks.length - 1) {
+          playCompleteSound();
+        }
+      }, idx * 100);
+    });
   };
 
   if (!activeBoard) {
@@ -534,6 +553,85 @@ export const BoardView: React.FC = () => {
         {/* ================= TABLE VIEW ================= */}
         {boardViewMode === 'table' && (
           <div className="table-view" id="board-table-view">
+            {/* Rich Empty States */}
+            {boardItems.length === 0 && (
+              <div className="empty-state-card glass-panel animate-fade-in" id="board-zero-items-state">
+                <div className="empty-state-icon-wrap sprint-glow">
+                  <Sparkles size={28} className="text-emerald-400" />
+                </div>
+                <h3 className="empty-state-title">Your Sprint Board is Ready</h3>
+                <p className="empty-state-desc">
+                  Start assigning tasks with OCC v2 collision protection, SLA tracking, and GitHub auto-transitions.
+                </p>
+                <div className="empty-state-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm flex items-center gap-1.5"
+                    onClick={() => {
+                      playClickSound();
+                      setQuickTaskOpen(true);
+                    }}
+                  >
+                    <Plus size={14} /> Add First Task
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm flex items-center gap-1.5"
+                    onClick={handleLoadSprintTemplate}
+                  >
+                    <Sparkles size={14} /> Load Sprint Template
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm flex items-center gap-1.5"
+                    onClick={() => {
+                      playClickSound();
+                      setInviteModalOpen(true);
+                    }}
+                  >
+                    <Users size={14} /> Invite Teammates
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {boardItems.length > 0 && filteredItems.length === 0 && (
+              <div className="empty-state-card glass-panel animate-fade-in" id="board-filter-empty-state">
+                <div className="empty-state-icon-wrap filter-glow">
+                  <Search size={28} className="text-indigo-400" />
+                </div>
+                <h3 className="empty-state-title">No matching tasks found</h3>
+                <p className="empty-state-desc">
+                  No items match your active filters {searchQuery ? `"${searchQuery}"` : ''} 
+                  {searchQuery && statusFilter !== 'all' ? ' with status ' : ''}
+                  {statusFilter !== 'all' ? `"${statusFilter}"` : ''}.
+                </p>
+                <div className="empty-state-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm flex items-center gap-1.5"
+                    onClick={() => {
+                      playClickSound();
+                      setSearchQuery('');
+                      setStatusFilter('all');
+                    }}
+                  >
+                    <X size={14} /> Clear Active Filters
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm flex items-center gap-1.5"
+                    onClick={() => {
+                      playClickSound();
+                      setQuickTaskOpen(true);
+                    }}
+                  >
+                    <Plus size={14} /> Quick Create Task
+                  </button>
+                </div>
+              </div>
+            )}
+
             {boardGroups.map((group) => {
               const groupItems = filteredItems.filter((i) => i.group_id === group.id);
               const groupAgg = calculateGroupAggregation(group.id, filteredItems);
@@ -568,7 +666,7 @@ export const BoardView: React.FC = () => {
                   {!group.collapsed && (
                     <div className="group-table-content">
                       {/* Column Header Grid */}
-                      <div className="table-header-grid" style={{ gridTemplateColumns: 'minmax(280px, 2fr) 140px 140px 90px 120px 80px 90px' }}>
+                      <div className="table-header-grid">
                         <div className="col-name">TASK / SUMMARY</div>
                         <div className="col-status">STATUS</div>
                         <div className="col-assignee">ASSIGNEE</div>
@@ -595,7 +693,6 @@ export const BoardView: React.FC = () => {
                               <div
                                 className="table-row"
                                 style={{ 
-                                  gridTemplateColumns: 'minmax(280px, 2fr) 140px 140px 90px 120px 80px 90px',
                                   zIndex: isRowActive ? 70 : 1,
                                   position: 'relative',
                                   borderLeft: activeViewer ? `3px solid ${activeViewer.color}` : undefined,
@@ -637,110 +734,112 @@ export const BoardView: React.FC = () => {
                                   )}
                                 </div>
 
-                                {/* Status Chip */}
-                                <div 
-                                  className="col-status" 
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{
-                                    zIndex: isRowActive ? 80 : 1,
-                                    position: 'relative'
-                                  }}
-                                >
-                                  <div className="relative">
-                                    <button
-                                      type="button"
-                                      className={`status-badge ${statusOptions.find((s) => s.label === item.status)?.className || 'working'}`}
-                                      id={`inline-status-chip-${item.id}`}
-                                      onClick={() => setActiveInlineStatusId(activeInlineStatusId === item.id ? null : item.id)}
-                                    >
-                                      <span>{statusOptions.find((s) => s.label === item.status)?.icon}</span>
-                                      <span>{item.status}</span>
-                                      <ChevronDown size={11} />
-                                    </button>
+                                <div className="mobile-columns-wrap">
+                                  {/* Status Chip */}
+                                  <div 
+                                    className="col-status" 
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      zIndex: isRowActive ? 80 : 1,
+                                      position: 'relative'
+                                    }}
+                                  >
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        className={`status-badge ${statusOptions.find((s) => s.label === item.status)?.className || 'working'}`}
+                                        id={`inline-status-chip-${item.id}`}
+                                        onClick={() => setActiveInlineStatusId(activeInlineStatusId === item.id ? null : item.id)}
+                                      >
+                                        <span>{statusOptions.find((s) => s.label === item.status)?.icon}</span>
+                                        <span>{item.status}</span>
+                                        <ChevronDown size={11} />
+                                      </button>
 
-                                    {activeInlineStatusId === item.id && (
-                                      <div className="dropdown-popover glass-panel animate-pop-in" id={`popover-status-${item.id}`}>
-                                        {statusOptions.map((s) => (
-                                          <button
-                                            key={s.label}
-                                            type="button"
-                                            className={`dropdown-option ${item.status === s.label ? 'active' : ''}`}
-                                            onClick={() => {
-                                              if (s.label === 'Done') {
-                                                playCompleteSound();
-                                              } else {
-                                                playTransitionSound();
-                                              }
-                                              updateBoardItem(item.id, {
-                                                status: s.label,
-                                                status_color: s.color,
-                                              });
-                                              setActiveInlineStatusId(null);
-                                            }}
-                                          >
-                                            <span>{s.icon}</span>
-                                            <span>{s.label}</span>
-                                            {item.status === s.label && <Check size={13} className="ml-auto" />}
-                                          </button>
-                                        ))}
-                                      </div>
+                                      {activeInlineStatusId === item.id && (
+                                        <div className="dropdown-popover glass-panel animate-pop-in" id={`popover-status-${item.id}`}>
+                                          {statusOptions.map((s) => (
+                                            <button
+                                              key={s.label}
+                                              type="button"
+                                              className={`dropdown-option ${item.status === s.label ? 'active' : ''}`}
+                                              onClick={() => {
+                                                if (s.label === 'Done') {
+                                                  playCompleteSound();
+                                                } else {
+                                                  playTransitionSound();
+                                                }
+                                                updateBoardItem(item.id, {
+                                                  status: s.label,
+                                                  status_color: s.color,
+                                                });
+                                                setActiveInlineStatusId(null);
+                                              }}
+                                            >
+                                              <span>{s.icon}</span>
+                                              <span>{s.label}</span>
+                                              {item.status === s.label && <Check size={13} className="ml-auto" />}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Assignee & Claim Action */}
+                                  <div className="col-assignee">
+                                    <div className="assignee-pill">
+                                      <img src={getSafeAvatar(item.assignee?.avatar, item.assignee?.name)} alt={item.assignee?.name || 'Assignee'} className="mini-avatar" />
+                                      <span className="assignee-text truncate">{item.assignee?.name || 'Unassigned'}</span>
+                                    </div>
+                                    {item.assignee?.id !== currentUser?.id ? (
+                                      <button
+                                        type="button"
+                                        className="btn-claim"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          playClickSound();
+                                          claimBoardItem(item.id, item.version);
+                                        }}
+                                        title="Claim this task for yourself"
+                                      >
+                                        Claim
+                                      </button>
+                                    ) : (
+                                      <span className="you-pill font-mono">
+                                        YOU
+                                      </span>
                                     )}
                                   </div>
-                                </div>
 
-                                {/* Assignee & Claim Action */}
-                                <div className="col-assignee">
-                                  <div className="assignee-pill">
-                                    <img src={getSafeAvatar(item.assignee?.avatar, item.assignee?.name)} alt={item.assignee?.name || 'Assignee'} className="mini-avatar" />
-                                    <span className="assignee-text truncate">{item.assignee?.name || 'Unassigned'}</span>
+                                  {/* Priority */}
+                                  <div className="col-priority">
+                                    <span className={`badge badge-${item.priority}`}>{item.priority}</span>
                                   </div>
-                                  {item.assignee?.id !== currentUser?.id ? (
+
+                                  {/* SLA Deadline */}
+                                  <div className="col-sla">
+                                    {renderSlaPill(item)}
+                                  </div>
+
+                                  {/* Story Points (Numbers Column) */}
+                                  <div className="col-pts font-mono text-xs text-slate-300">
+                                    <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60">
+                                      {pointsVal} pts
+                                    </span>
+                                  </div>
+
+                                  {/* Sub-items Pill */}
+                                  <div className="col-subtasks" onClick={(e) => e.stopPropagation()}>
                                     <button
                                       type="button"
-                                      className="btn-claim"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        playClickSound();
-                                        claimBoardItem(item.id, item.version);
-                                      }}
-                                      title="Claim this task for yourself"
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800/80 text-slate-300 border border-slate-700/60 hover:border-emerald-500/40 hover:text-emerald-300 transition-colors"
+                                      onClick={() => toggleSubItemExpand(item.id)}
                                     >
-                                      Claim
+                                      <CornerDownRight size={10} className="text-emerald-400" />
+                                      <span>{subItemCount} subs</span>
                                     </button>
-                                  ) : (
-                                    <span className="you-pill font-mono">
-                                      YOU
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Priority */}
-                                <div className="col-priority">
-                                  <span className={`badge badge-${item.priority}`}>{item.priority}</span>
-                                </div>
-
-                                {/* SLA Deadline */}
-                                <div className="col-sla">
-                                  {renderSlaPill(item)}
-                                </div>
-
-                                {/* Story Points (Numbers Column) */}
-                                <div className="col-pts font-mono text-xs text-slate-300">
-                                  <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60">
-                                    {pointsVal} pts
-                                  </span>
-                                </div>
-
-                                {/* Sub-items Pill */}
-                                <div className="col-subtasks" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800/80 text-slate-300 border border-slate-700/60 hover:border-emerald-500/40 hover:text-emerald-300 transition-colors"
-                                    onClick={() => toggleSubItemExpand(item.id)}
-                                  >
-                                    <CornerDownRight size={10} className="text-emerald-400" />
-                                    <span>{subItemCount} subs</span>
-                                  </button>
+                                  </div>
                                 </div>
                               </div>
 
@@ -839,177 +938,17 @@ export const BoardView: React.FC = () => {
 
         {/* ================= KANBAN VIEW ================= */}
         {boardViewMode === 'kanban' && (
-          <div className="kanban-view" id="board-kanban-view">
-            {statusOptions.map((st) => {
-              const cards = filteredItems.filter((i) => i.status === st.label);
-              const isOverThisCol = dragOverCol === st.label;
-
-              return (
-                <div 
-                  key={st.label} 
-                  className={`kanban-column glass-panel ${isOverThisCol ? 'col-drag-over' : ''}`} 
-                  id={`kanban-col-${st.className}`}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (dragOverCol !== st.label) {
-                      setDragOverCol(st.label);
-                    }
-                  }}
-                  onDragLeave={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                      if (dragOverCol === st.label) {
-                        setDragOverCol(null);
-                      }
-                    }
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragOverCol(null);
-                    const droppedCardId = e.dataTransfer.getData('text/plain') || draggingCardId;
-                    if (!droppedCardId) return;
-                    const targetCard = filteredItems.find((i) => i.id === droppedCardId);
-                    if (!targetCard || targetCard.status === st.label) return;
-                    if (st.label === 'Done') {
-                      playCompleteSound();
-                    } else {
-                      playTransitionSound();
-                    }
-                    updateBoardItem(targetCard.id, { status: st.label, status_color: st.color }, targetCard.version);
-                  }}
-                >
-                  {/* Column Header */}
-                  <div className="kanban-col-header">
-                    <div className="col-title-left">
-                      <span className="col-icon">{st.icon}</span>
-                      <span className="col-title">{st.label}</span>
-                    </div>
-                    <span className="col-count font-mono">{cards.length}</span>
-                  </div>
-
-                  {/* Cards Stack */}
-                  <div className="cards-stack">
-                    {cards.map((card) => {
-                      const ticketNumber = card.ticket_number || `#TK-${card.id.replace('item-', '').padStart(3, '0')}`;
-                      const subtaskCount = card.subtasks?.length || 0;
-                      const completedSubtasks = card.subtasks?.filter((s) => s.completed).length || 0;
-                      const isThisDragging = draggingCardId === card.id;
-                      const activeViewer = focusedTeammatesByItem.get(card.id);
-
-                      return (
-                        <div
-                          key={card.id}
-                          className={`kanban-card glass-panel ${isThisDragging ? 'is-dragging' : ''}`}
-                          id={`kanban-card-${card.id}`}
-                          style={activeViewer ? {
-                            borderColor: activeViewer.color,
-                            boxShadow: `0 0 16px ${activeViewer.color}50, inset 0 0 0 1px ${activeViewer.color}80`,
-                          } : undefined}
-                          draggable
-                          onDragStart={(e) => {
-                            playClickSound();
-                            e.dataTransfer.setData('text/plain', card.id);
-                            e.dataTransfer.effectAllowed = 'move';
-                            setDraggingCardId(card.id);
-                          }}
-                          onDragEnd={() => {
-                            setDraggingCardId(null);
-                            setDragOverCol(null);
-                          }}
-                          onClick={() => openItemDetail(card)}
-                        >
-                          <div className="card-top flex items-center justify-between gap-2">
-                            <span className="issue-key-badge font-mono">
-                              {ticketNumber}
-                            </span>
-                            {activeViewer && (
-                              <div 
-                                className="presence-focus-pill inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold animate-pulse"
-                                style={{ 
-                                  backgroundColor: `${activeViewer.color}25`, 
-                                  color: activeViewer.color,
-                                  border: `1px solid ${activeViewer.color}60`
-                                }}
-                              >
-                                <img 
-                                  src={getSafeAvatar(activeViewer.avatar, activeViewer.name)} 
-                                  alt={activeViewer.name}
-                                  className="w-3.5 h-3.5 rounded-full object-cover" 
-                                />
-                                <span>{activeViewer.name.split(' ')[0]} inspecting</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1.5 ml-auto">
-                              {renderSourceBadge(card)}
-                              <span className={`badge badge-${card.priority}`}>{card.priority}</span>
-                            </div>
-                          </div>
-
-                          <h4 className="card-title flex items-center justify-between gap-1">
-                            <span className="truncate">{card.title}</span>
-                          </h4>
-
-                          <div className="flex items-center gap-2 my-1">
-                            {renderSlaPill(card)}
-                            {subtaskCount > 0 && (
-                              <span className="text-[10px] font-mono text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/50">
-                                {completedSubtasks}/{subtaskCount} subtasks
-                              </span>
-                            )}
-                          </div>
-
-                          {card.tags.filter((t) => t.toLowerCase() !== 'ticket').length > 0 && (
-                            <div className="card-tags">
-                              {card.tags
-                                .filter((t) => t.toLowerCase() !== 'ticket')
-                                .map((t) => (
-                                <span key={t} className="tag-pill">{t}</span>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="card-footer">
-                            <div className="flex items-center gap-2">
-                              <div className="card-assignee">
-                                <img src={getSafeAvatar(card.assignee?.avatar, card.assignee?.name)} alt={card.assignee?.name || 'Assignee'} className="mini-avatar" />
-                                <span>{card.assignee?.name ? card.assignee.name.split(' ')[0] : 'Unassigned'}</span>
-                              </div>
-                              {card.assignee?.id !== currentUser?.id && (
-                                <button
-                                  type="button"
-                                  className="btn-claim-subtle"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    playClickSound();
-                                    claimBoardItem(card.id, card.version);
-                                  }}
-                                  title="Claim this task"
-                                >
-                                  Claim
-                                </button>
-                              )}
-                            </div>
-                            {card.comments.length > 0 && (
-                              <span className="font-mono text-xs text-muted flex items-center gap-1">
-                                <MessageSquare size={12} />
-                                {card.comments.length}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {cards.length === 0 && (
-                      <div className={`empty-kanban-slot ${isOverThisCol ? 'empty-kanban-slot-active' : ''}`}>
-                        <span>{isOverThisCol ? 'Drop here to update status' : `No items in ${st.label}`}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <KanbanBoard
+            statusOptions={statusOptions}
+            filteredItems={filteredItems}
+            currentUser={currentUser}
+            focusedTeammatesByItem={focusedTeammatesByItem}
+            onUpdateItem={updateBoardItem}
+            onOpenDetail={openItemDetail}
+            onClaimItem={claimBoardItem}
+            onAddItem={addBoardItem}
+            boardGroups={boardGroups}
+          />
         )}
 
         {/* ================= TIMELINE / GANTT VIEW ================= */}
@@ -1331,10 +1270,65 @@ export const BoardView: React.FC = () => {
           overflow: visible;
         }
 
+        .mobile-columns-wrap {
+          display: contents;
+        }
+
+        .empty-state-card {
+          padding: 44px 24px;
+          text-align: center;
+          border-radius: 16px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-default);
+          margin-bottom: 24px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 14px;
+        }
+        .empty-state-icon-wrap {
+          width: 58px;
+          height: 58px;
+          border-radius: 18px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .empty-state-icon-wrap.sprint-glow {
+          background: rgba(62, 207, 142, 0.12);
+          border: 1px solid rgba(62, 207, 142, 0.3);
+          box-shadow: 0 0 24px rgba(62, 207, 142, 0.2);
+        }
+        .empty-state-icon-wrap.filter-glow {
+          background: rgba(99, 102, 241, 0.12);
+          border: 1px solid rgba(99, 102, 241, 0.3);
+          box-shadow: 0 0 24px rgba(99, 102, 241, 0.2);
+        }
+        .empty-state-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+        }
+        .empty-state-desc {
+          font-size: 13px;
+          color: var(--text-secondary);
+          max-width: 460px;
+          line-height: 1.5;
+          margin: 0;
+        }
+        .empty-state-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 6px;
+          justify-content: center;
+        }
+
         .table-header-grid {
           display: grid;
-          grid-template-columns: minmax(280px, 1.8fr) 155px 150px 95px 115px 85px 115px 95px;
-          min-width: 1090px;
+          grid-template-columns: minmax(280px, 2fr) 140px 140px 90px 120px 80px 90px;
+          min-width: 980px;
           padding: 10px 18px;
           font-size: 11px;
           font-weight: 700;
@@ -1346,8 +1340,8 @@ export const BoardView: React.FC = () => {
 
         .table-row {
           display: grid;
-          grid-template-columns: minmax(280px, 1.8fr) 155px 150px 95px 115px 85px 115px 95px;
-          min-width: 1090px;
+          grid-template-columns: minmax(280px, 2fr) 140px 140px 90px 120px 80px 90px;
+          min-width: 980px;
           align-items: center;
           padding: 10px 18px;
           border-bottom: 1px solid var(--border-subtle);
@@ -1356,6 +1350,39 @@ export const BoardView: React.FC = () => {
         }
         .table-row:hover {
           background: var(--bg-hover);
+        }
+
+        @media (max-width: 768px) {
+          .table-header-grid {
+            display: none !important;
+          }
+          .table-row {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            min-width: 0 !important;
+            width: 100% !important;
+            padding: 14px 16px !important;
+            gap: 10px !important;
+            border-radius: 10px !important;
+            margin-bottom: 8px !important;
+            background: var(--bg-surface) !important;
+            border: 1px solid var(--border-subtle) !important;
+          }
+          .col-name {
+            width: 100% !important;
+            padding-right: 0 !important;
+          }
+          .mobile-columns-wrap {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 8px !important;
+            padding-top: 8px !important;
+            border-top: 1px solid var(--border-subtle) !important;
+            width: 100% !important;
+          }
         }
 
         .col-name {
