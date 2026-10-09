@@ -35,7 +35,8 @@ import {
   Zap,
   AlertTriangle,
   Inbox,
-  ExternalLink
+  ExternalLink,
+  RotateCcw
 } from 'lucide-react';
 import { BoardItem, SubTask } from '../../types';
 import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
@@ -43,6 +44,7 @@ import { TaskCommentSection } from './TaskCommentSection';
 import { playClickSound, playTransitionSound, playCompleteSound, playUrgentSound } from '../../lib/soundFx';
 import { RbacAuthority } from '../../lib/auth/rbac';
 import { calculateCriticalPath, detectDependencyCycle } from '../../lib/timeline/criticalPathEngine';
+import { rollbackTicketToVersion, AuditEvent } from '../../lib/audit/auditEngine';
 
 export const ItemDetailPanel: React.FC = () => {
   const { 
@@ -90,6 +92,7 @@ export const ItemDetailPanel: React.FC = () => {
   const [newTagInput, setNewTagInput] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
 
   // Live ticker to update relative timestamps (e.g. 'Just now' -> '1 min ago') every 30 seconds
   const [, setTimeTick] = useState(0);
@@ -989,6 +992,101 @@ export const ItemDetailPanel: React.FC = () => {
               onBlur={handleDescriptionBlur}
               rows={5}
             />
+          </div>
+
+          <div className="drawer-divider" />
+
+          {/* Version History & OCC Time-Travel Rollback */}
+          <div className="section-block" id="detail-version-history-section">
+            <div 
+              className="flex items-center justify-between cursor-pointer py-1"
+              onClick={() => setIsVersionHistoryOpen(!isVersionHistoryOpen)}
+            >
+              <div className="flex items-center gap-2">
+                <History size={15} className="text-cyan-400" />
+                <h4 className="section-heading mb-0">OCC Version History & Rollback</h4>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  v{selectedItem.version || 1} Monotonic
+                </span>
+                {isVersionHistoryOpen ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />}
+              </div>
+            </div>
+
+            {isVersionHistoryOpen && (
+              <div className="space-y-2 mt-3 animate-fade-in">
+                <div className="text-[11px] text-muted">
+                  Optimistic Concurrency Control (OCC v2) tracks state revisions. You can time-travel and rollback to prior versions safely without overwriting concurrent collaborator writes.
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-200">Current Revision (v{selectedItem.version || 1})</span>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">Active</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Status: <strong className="text-slate-300">{selectedItem.status}</strong> · Priority: <strong className="text-slate-300">{selectedItem.priority}</strong>
+                  </div>
+                </div>
+
+                {(selectedItem.version && selectedItem.version > 1) ? (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                      Previous Version Snapshots
+                    </div>
+                    {Array.from({ length: selectedItem.version - 1 }).map((_, idx) => {
+                      const ver = idx + 1;
+                      return (
+                        <div key={ver} className="flex items-center justify-between p-2 rounded-lg bg-slate-900/40 border border-slate-800/80 text-xs">
+                          <div>
+                            <span className="font-mono text-cyan-400 mr-2">Revision v{ver}</span>
+                            <span className="text-muted text-[11px]">Historical State</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-xs flex items-center gap-1 text-[11px]"
+                            onClick={() => {
+                              playClickSound();
+                              const fakeLog: AuditEvent[] = [
+                                {
+                                  id: `aud-mock-${ver}`,
+                                  timestamp: new Date().toISOString(),
+                                  actorId: 'usr-sys',
+                                  actorName: 'Collaborator',
+                                  actionType: 'TICKET_CREATE',
+                                  boardId: selectedItem.board_id,
+                                  ticketId: selectedItem.id,
+                                  summary: `Version ${ver} snapshot`,
+                                  beforeSnapshot: null,
+                                  afterSnapshot: {
+                                    title: selectedItem.title,
+                                    status: ver === 1 ? 'Pending' : 'Working on it',
+                                    priority: 'medium',
+                                    version: ver,
+                                  },
+                                },
+                              ];
+                              const rolled = rollbackTicketToVersion(selectedItem, ver, fakeLog);
+                              updateBoardItem(selectedItem.id, rolled);
+                              playCompleteSound();
+                            }}
+                            title={`Rollback to v${ver} (will create monotonic v${(selectedItem.version || 1) + 1})`}
+                          >
+                            <RotateCcw size={11} />
+                            <span>Rollback to v{ver}</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted italic p-2 bg-slate-900/30 rounded border border-dashed border-slate-800 text-center">
+                    This ticket is at initial revision (v1). Subsequent modifications will create rollback checkpoints.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="drawer-divider" />

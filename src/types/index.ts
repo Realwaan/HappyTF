@@ -71,6 +71,8 @@ export interface BoardSummary {
   columns?: import('../lib/mondaydb/types').BoardColumn[];
 }
 
+export type Board = BoardSummary;
+
 export interface BoardTemplate {
   id: string;
   name: string;

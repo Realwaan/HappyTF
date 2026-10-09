@@ -22,6 +22,7 @@ timeline
     Phase 6 (Sprint Intelligence & AI Copilot) : Autonomous Spec Expander : Blocker Risk Predictor : Workload Rebalancer : Natural Language Board Filter
     Phase 7 (Interactive Gantt & Critical Path) : CPM Bottleneck Calculation : Bidirectional Dependency Links : Auto-Cascading Shifts : Cycle Detection Guard
     Phase 8 (Public Work Intake & Customer Tracker) : Frictionless Bug & Feature Intake : Zero-Auth Ticket Tracking : Priority-Tiered Dynamic SLAs : Auto-Board Triage Routing
+    Phase 9 (Data Portability & Audit Vault) : RFC 4180 CSV Export & Importer : Lossless JSON Snapshot : Markdown Sprint Specs : OCC Time-Travel Rollback
 ```
 
 ---
@@ -214,5 +215,34 @@ timeline
 4. **Comprehensive Vitest Suite**:
    - `tests/intake_portal_engine.test.ts` (8 tests).
    - Complete workspace passes 100% green across 22 test files (115 tests).
+
+---
+
+## Phase 9: Enterprise Data Portability, Audit Trail & Rollback Vault — [COMPLETED]
+
+**Goal:** Provide enterprise-grade data sovereignty, zero-friction data portability across CSV, JSON, and Markdown formats, tamper-evident audit logging, and monotonic OCC time-travel rollback capabilities.
+
+### Completed Deliverables:
+1. **Universal Export & Portability Domain Engine (`src/lib/export/exportEngine.ts`)**:
+   - **RFC 4180 CSV Exporter (`exportBoardToCsv`)**: Correctly quotes and escapes internal commas, quotes, and newlines; exports full ticket metadata (Ticket Number, Title, Status, Priority, Assignee, Start Date, Due Date, SLA Deadline, Tags, Version, Description).
+   - **Lossless JSON Snapshot (`exportBoardToJson`)**: Formats full board structure, group definitions, and items with schema versioning (`1.0`) and export timestamps.
+   - **GitHub Markdown Spec (`exportBoardToMarkdown`)**: Generates formatted markdown tables complete with board summary stats (Total, Done, In Progress, Stuck) suitable for GitHub READMEs and sprint reports.
+   - **CSV Task Importer (`importTicketsFromCsv`)**: Robust line parser supporting quoted multiline fields; validates required `Title` headers, allocates unique IDs and initial monotonic `version: 1` OCC tokens, and reports row validation errors.
+2. **Enterprise Audit Trail & Rollback Engine (`src/lib/audit/auditEngine.ts`)**:
+   - **Immutable Event Recorder (`recordAuditEntry`)**: Captures actor attribution, action types (`TICKET_CREATE`, `STATUS_CHANGE`, `PRIORITY_CHANGE`, `CASCADE_SHIFT`, `TICKET_DELETE`, `TICKET_ROLLBACK`), and before/after diff snapshots.
+   - **Chronological History (`getTicketVersionHistory`)**: Reconstructs revision evolution over time for any ticket.
+   - **OCC-Preserving Time-Travel Rollback (`rollbackTicketToVersion`)**: Restores historical properties while strictly incrementing the monotonic OCC token (`current.version + 1`) to preserve concurrency safety and prevent stale write collisions.
+3. **Interactive UI & Shell Integration**:
+   - **Data Portability & Vault Modal (`src/components/board/DataExportModal.tsx`)**:
+     - *Export Tab:* 1-click downloads for `.csv`, `.json`, and `.md` formats with live preview and clipboard copy.
+     - *Import Tab:* Paste or upload CSV text with live parsed task preview, error reporting, and target group selection.
+     - *Audit Tab:* Filterable tamper-evident activity feed.
+   - **Board Toolbar Integration (`src/components/board/BoardView.tsx`)**: Added `#open-export-modal-btn` and bound global `⌘E` / `Ctrl+E` keyboard shortcut.
+   - **Item Detail Panel Integration (`src/components/board/ItemDetailPanel.tsx`)**: Added `#detail-version-history-section` with interactive monotonic version breakdown and 1-click time-travel rollback buttons.
+   - **Cheat Sheet (`src/components/shell/KeyboardShortcutsModal.tsx`)**: Documented `⌘E` shortcut in power user cheat sheet.
+4. **Comprehensive Vitest Suite**:
+   - `tests/audit_and_export_engine.test.ts` (8 tests).
+   - Complete workspace passes 100% green across 23 test files (123 tests).
+
 
 

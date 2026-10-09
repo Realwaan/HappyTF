@@ -39,7 +39,8 @@ import {
   Zap,
   BarChart3,
   WifiOff,
-  Inbox
+  Inbox,
+  Download
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
 import { useRealtimeTickets } from '../../lib/supabase/useRealtimeTickets';
@@ -56,6 +57,7 @@ import { TimelineView } from './TimelineView';
 import { DashboardWidgetsView } from './DashboardWidgetsView';
 import { InviteCollaboratorsModal } from './InviteCollaboratorsModal';
 import { IntakeShareModal } from './IntakeShareModal';
+import { DataExportModal } from './DataExportModal';
 import { KanbanBoard } from './KanbanBoard';
 
 export const BoardView: React.FC = () => {
@@ -99,6 +101,7 @@ export const BoardView: React.FC = () => {
 
   const [isInviteModalOpen, setInviteModalOpen] = useState(false);
   const [isIntakeShareOpen, setIntakeShareOpen] = useState(false);
+  const [isExportModalOpen, setExportModalOpen] = useState(false);
   const [isAutoJoining, setIsAutoJoining] = useState(false);
   const autoJoinAttemptedRef = useRef(false);
 
@@ -201,6 +204,21 @@ export const BoardView: React.FC = () => {
     window.addEventListener('click', handleOutside);
     return () => window.removeEventListener('click', handleOutside);
   }, [activeInlineStatusId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'e') {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+          return;
+        }
+        e.preventDefault();
+        setExportModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleAddInlineItem = (groupId: string) => {
     const title = (newRowTitle[groupId] || '').trim();
@@ -517,6 +535,17 @@ export const BoardView: React.FC = () => {
               <span className="ml-1 px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[10px]">
                 Public
               </span>
+            </button>
+
+            <button
+              id="open-export-modal-btn"
+              type="button"
+              className="btn btn-secondary btn-sm flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+              onClick={() => setExportModalOpen(true)}
+              title="Export Board Data, CSV Import & Audit Vault"
+            >
+              <Download size={13} className="text-emerald-400" />
+              <span>Export</span>
             </button>
 
             {isOffline && (
@@ -1201,6 +1230,28 @@ export const BoardView: React.FC = () => {
         boardId={activeBoard.id}
         boardTitle={activeBoard.name}
         workspaceName={currentWorkspace?.name}
+      />
+
+      {/* Enterprise Data Export, CSV Importer & Audit Vault */}
+      <DataExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        board={activeBoard}
+        groups={boardGroups}
+        items={boardItems}
+        onImportItems={(newItems) => {
+          newItems.forEach((item) => {
+            addBoardItem(item.group_id, item.title, {
+              status: item.status,
+              priority: item.priority,
+              due_date: item.due_date,
+              start_date: item.start_date,
+              assignee: item.assignee,
+              tags: item.tags,
+              description: item.description,
+            });
+          });
+        }}
       />
 
       <style jsx>{`
