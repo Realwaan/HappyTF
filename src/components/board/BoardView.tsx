@@ -38,7 +38,8 @@ import {
   Bot,
   Zap,
   BarChart3,
-  WifiOff
+  WifiOff,
+  Inbox
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
 import { useRealtimeTickets } from '../../lib/supabase/useRealtimeTickets';
@@ -54,6 +55,7 @@ import { SubItemsTable } from './SubItemsTable';
 import { TimelineView } from './TimelineView';
 import { DashboardWidgetsView } from './DashboardWidgetsView';
 import { InviteCollaboratorsModal } from './InviteCollaboratorsModal';
+import { IntakeShareModal } from './IntakeShareModal';
 import { KanbanBoard } from './KanbanBoard';
 
 export const BoardView: React.FC = () => {
@@ -96,6 +98,7 @@ export const BoardView: React.FC = () => {
   } = useApp();
 
   const [isInviteModalOpen, setInviteModalOpen] = useState(false);
+  const [isIntakeShareOpen, setIntakeShareOpen] = useState(false);
   const [isAutoJoining, setIsAutoJoining] = useState(false);
   const autoJoinAttemptedRef = useRef(false);
 
@@ -499,6 +502,20 @@ export const BoardView: React.FC = () => {
               <span>AI Copilot</span>
               <span className="ml-1 px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px]">
                 ⌘J
+              </span>
+            </button>
+
+            <button
+              id="open-intake-share-btn"
+              type="button"
+              className="btn btn-secondary btn-sm flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+              onClick={() => setIntakeShareOpen(true)}
+              title="Share Public Intake Portal & Bug Form"
+            >
+              <Inbox size={13} className="text-cyan-400" />
+              <span>Intake Portal</span>
+              <span className="ml-1 px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[10px]">
+                Public
               </span>
             </button>
 
@@ -1175,6 +1192,15 @@ export const BoardView: React.FC = () => {
         onSimulateJoin={simulateCollaboratorJoin}
         onSimulateLeave={simulateCollaboratorLeave}
         onBroadcastAction={(action, msg) => broadcastAction(action, msg)}
+      />
+
+      {/* Public Intake Portal Sharing Modal */}
+      <IntakeShareModal
+        isOpen={isIntakeShareOpen}
+        onClose={() => setIntakeShareOpen(false)}
+        boardId={activeBoard.id}
+        boardTitle={activeBoard.name}
+        workspaceName={currentWorkspace?.name}
       />
 
       <style jsx>{`

@@ -33,7 +33,9 @@ import {
   Bot,
   Link2,
   Zap,
-  AlertTriangle
+  AlertTriangle,
+  Inbox,
+  ExternalLink
 } from 'lucide-react';
 import { BoardItem, SubTask } from '../../types';
 import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
@@ -690,6 +692,48 @@ export const ItemDetailPanel: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* External Intake Requester Card */}
+          {selectedItem.tags.some((t) => t.startsWith('Intake:') || t.startsWith('Requested by:') || t === 'Public Portal') && (
+            <div 
+              id="detail-intake-requester-card"
+              className="my-3 p-3 rounded-lg border border-cyan-500/30 bg-cyan-950/20 text-cyan-200"
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-cyan-300">
+                  <Inbox size={14} className="text-cyan-400" />
+                  <span>External Intake Request</span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                  Client Portal
+                </span>
+              </div>
+              <div className="text-xs text-slate-300 space-y-1">
+                {selectedItem.tags.find((t) => t.startsWith('Requested by:')) && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted">Requester:</span>
+                    <span className="font-mono text-cyan-200">
+                      {selectedItem.tags.find((t) => t.startsWith('Requested by:'))?.replace('Requested by:', '').trim()}
+                    </span>
+                  </div>
+                )}
+                {selectedItem.ticket_number && (
+                  <div className="flex items-center justify-between pt-1 border-t border-cyan-500/20">
+                    <span className="text-muted">Client Tracker:</span>
+                    <a
+                      href={`/track/${selectedItem.ticket_number}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 underline font-mono"
+                    >
+                      <span>/track/{selectedItem.ticket_number}</span>
+                      <ExternalLink size={11} />
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="drawer-divider" />
 

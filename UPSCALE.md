@@ -21,6 +21,7 @@ timeline
     Phase 5 (Scale & Offline PWA) : IndexedDB Offline-First Sync : Service Worker Background Push : 100k Row WASM Aggregations
     Phase 6 (Sprint Intelligence & AI Copilot) : Autonomous Spec Expander : Blocker Risk Predictor : Workload Rebalancer : Natural Language Board Filter
     Phase 7 (Interactive Gantt & Critical Path) : CPM Bottleneck Calculation : Bidirectional Dependency Links : Auto-Cascading Shifts : Cycle Detection Guard
+    Phase 8 (Public Work Intake & Customer Tracker) : Frictionless Bug & Feature Intake : Zero-Auth Ticket Tracking : Priority-Tiered Dynamic SLAs : Auto-Board Triage Routing
 ```
 
 ---
@@ -187,4 +188,31 @@ timeline
 4. **Comprehensive Vitest Suite**:
    - `tests/critical_path_engine.test.ts` (9 tests) & `tests/interactive_timeline.test.ts` (5 tests).
    - Workspace passes 100% green across 21 test files (107 tests).
+
+---
+
+## Phase 8: Public Work Intake Portal & External Client Tracker — [COMPLETED]
+
+**Goal:** Enable external clients, users, and cross-functional teams to submit bug reports and requests directly into HappyTF without requiring an account, and provide a transparent, real-time public ticket tracking experience (`/track/[id]`).
+
+### Completed Deliverables:
+1. **Intake & Triage Domain Engine (`src/lib/intake/intakeEngine.ts`)**:
+   - **Zod Input Validation (`IntakeSubmissionSchema`)**: Enforces strict payload validation across categories (`bug`, `feature`, `support`, `operations`), priority tiers, email syntax, and title/description lengths.
+   - **Automated Board & Group Routing**: Bugs automatically route to `board-tickets` (`grp-tk-triage`), while features route to `board-01` (`grp-01-todo`), supporting explicit `targetBoardId` overrides.
+   - **Priority-Tiered SLA Engine**: Computes strict response windows based on urgency (2h urgent, 24h high, 48h medium, 168h low).
+   - **OCC v2 Monotonic Version Integrity**: All generated intake items initialize with `version: 1`, unique `TK-IN-xxxx` ticket numbers, and tracking tokens.
+   - **Customer Milestone Projection (`getSanitizedTrackingTicket`)**: Maps internal statuses (`Pending`, `Working on it`, `In Review`, `Done`, `Stuck`) into clear customer-facing milestones (*Triage*, *Active Development*, *QA & Verification*, *Resolved & Shipped*, *Under Investigation*) with 0-100% progress metrics while stripping sensitive internal tags.
+2. **Next.js 15 App Router Routes**:
+   - **API Endpoint (`src/app/api/intake/route.ts`)**: `POST /api/intake` for secure request processing and `GET /api/intake?id=...` for customer tracker data.
+   - **Public Work Intake Portal (`src/app/intake/page.tsx`)**: High-polish dark-canvas submission portal with category chips, urgency selector, form validation, particle confetti celebration, and 1-click tracking link receipt generator.
+   - **External Client Tracker (`src/app/track/[id]/page.tsx`)**: Real-time customer view featuring 5-stage milestone stepper, SLA response timer, resolution status indicator, and public follow-up discussion feed.
+3. **In-App Shell & Workspace Integration**:
+   - **Sidebar Navigation (`src/components/shell/Sidebar.tsx`)**: Added `#nav-intake-link` with a distinctive `Public` badge to open the intake portal.
+   - **Board Toolbar (`src/components/board/BoardView.tsx`)**: Added `#open-intake-share-btn` in the board header toolbar.
+   - **Intake Share Modal (`src/components/board/IntakeShareModal.tsx`)**: Interactive modal with 1-click public link copying, embeddable HTML iframe widget snippet generator, and client ticket lookup search.
+   - **Task Details Panel (`src/components/board/ItemDetailPanel.tsx`)**: `#detail-intake-requester-card` displays requester information and a direct jump link to `/track/[id]` for all intake tickets.
+4. **Comprehensive Vitest Suite**:
+   - `tests/intake_portal_engine.test.ts` (8 tests).
+   - Complete workspace passes 100% green across 22 test files (115 tests).
+
 

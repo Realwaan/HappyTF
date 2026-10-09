@@ -23,7 +23,8 @@ import {
   MessageSquare,
   Hash,
   Zap,
-  BarChart3
+  BarChart3,
+  Inbox
 } from 'lucide-react';
 import { IconBadge } from '../common/IconBadge';
 import { BoardSummary } from '../../types';
@@ -318,6 +319,25 @@ export const Sidebar: React.FC = () => {
               </div>
             )}
           </button>
+
+          <a
+            href="/intake"
+            target="_blank"
+            rel="noopener noreferrer"
+            id="nav-intake-link"
+            className="nav-link"
+            title="Public Request & Bug Intake Portal"
+          >
+            <Inbox size={18} className="text-cyan-400" />
+            {!isSidebarCollapsed && (
+              <div className="nav-label-with-badge">
+                <span>Intake Portal</span>
+                <span className="feature-pill font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  Public
+                </span>
+              </div>
+            )}
+          </a>
         </div>
 
         {/* Workspace Channels Section */}
