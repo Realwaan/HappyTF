@@ -30,13 +30,17 @@ import {
   Kanban,
   GitCommit,
   ShieldCheck,
-  Bot
+  Bot,
+  Link2,
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
 import { BoardItem, SubTask } from '../../types';
 import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
 import { TaskCommentSection } from './TaskCommentSection';
-import { playClickSound, playTransitionSound, playCompleteSound } from '../../lib/soundFx';
+import { playClickSound, playTransitionSound, playCompleteSound, playUrgentSound } from '../../lib/soundFx';
 import { RbacAuthority } from '../../lib/auth/rbac';
+import { calculateCriticalPath, detectDependencyCycle } from '../../lib/timeline/criticalPathEngine';
 
 export const ItemDetailPanel: React.FC = () => {
   const { 
@@ -52,7 +56,11 @@ export const ItemDetailPanel: React.FC = () => {
     currentUser,
     members,
     gitHubCommits,
-    recentBoards
+    recentBoards,
+    boardItems,
+    openItemDetail,
+    addDependencyLink,
+    removeDependencyLink
   } = useApp();
 
   const currentWorkspaceMember = members.find((m) => m.user_id === currentUser?.id);
@@ -74,6 +82,9 @@ export const ItemDetailPanel: React.FC = () => {
   const [isAssigneeOpen, setIsAssigneeOpen] = useState(false);
   const [isDueDateEditing, setIsDueDateEditing] = useState(false);
   const [dueDateInput, setDueDateInput] = useState('');
+  const [isStartDateEditing, setIsStartDateEditing] = useState(false);
+  const [startDateInput, setStartDateInput] = useState('');
+  const [isDepDropdownOpen, setIsDepDropdownOpen] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
@@ -105,6 +116,9 @@ export const ItemDetailPanel: React.FC = () => {
       setIsAssigneeOpen(false);
       setIsDueDateEditing(false);
       setDueDateInput(selectedItem.due_date || '');
+      setIsStartDateEditing(false);
+      setStartDateInput(selectedItem.start_date || '');
+      setIsDepDropdownOpen(false);
       setIsAddingTag(false);
       setNewTagInput('');
       setNewSubtaskTitle('');
@@ -494,6 +508,61 @@ export const ItemDetailPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* Start Date Property */}
+            <div className="property-row">
+              <span className="property-label">Start Date</span>
+              <div className="property-value">
+                {isStartDateEditing ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      className="px-2 py-1 text-xs bg-slate-900 border border-emerald-500/50 rounded font-mono text-slate-200 outline-none w-36"
+                      value={startDateInput}
+                      onChange={(e) => setStartDateInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          updateBoardItem(selectedItem.id, { start_date: startDateInput.trim() || undefined });
+                          setIsStartDateEditing(false);
+                        } else if (e.key === 'Escape') {
+                          setIsStartDateEditing(false);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="p-1 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                      onClick={() => {
+                        updateBoardItem(selectedItem.id, { start_date: startDateInput.trim() || undefined });
+                        setIsStartDateEditing(false);
+                      }}
+                    >
+                      <Check size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="p-1 rounded bg-slate-800 text-slate-400 hover:text-slate-200"
+                      onClick={() => setIsStartDateEditing(false)}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <div 
+                    className="date-chip cursor-pointer hover:border-slate-600 transition-colors"
+                    onClick={() => {
+                      setStartDateInput(selectedItem.start_date || '');
+                      setIsStartDateEditing(true);
+                    }}
+                    title="Click to edit start date"
+                  >
+                    <Calendar size={13} className="text-muted" />
+                    <span className="font-mono text-xs">{selectedItem.start_date || 'Set start date'}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Due Date & SLA Property */}
             <div className="property-row">
               <span className="property-label">Target SLA</span>
@@ -617,6 +686,161 @@ export const ItemDetailPanel: React.FC = () => {
                     <Plus size={10} />
                     <span>Tag</span>
                   </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="drawer-divider" />
+
+          {/* Dependencies & Critical Path Section */}
+          <div className="section-block">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Link2 size={15} className="text-emerald-400" />
+                <h4 className="section-heading mb-0">Dependencies & Critical Path</h4>
+              </div>
+              {(() => {
+                const cpm = calculateCriticalPath(boardItems);
+                const isCrit = cpm.nodeMetrics[selectedItem.id]?.isCritical;
+                const slack = cpm.nodeMetrics[selectedItem.id]?.slack ?? 0;
+                return isCrit ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse">
+                    <Zap size={10} /> 0d Float (Critical)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono text-slate-400 bg-slate-800/60 border border-slate-700/60">
+                    +{slack}d Float
+                  </span>
+                );
+              })()}
+            </div>
+
+            {/* Blocked By List */}
+            <div className="space-y-1.5 my-2">
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1">
+                Blocked By (Prerequisites)
+              </div>
+              {(selectedItem.blocked_by && selectedItem.blocked_by.length > 0) ? (
+                selectedItem.blocked_by.map((predId) => {
+                  const predItem = boardItems.find((i) => i.id === predId);
+                  return (
+                    <div 
+                      key={predId}
+                      className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-colors"
+                    >
+                      <div 
+                        className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
+                        onClick={() => predItem && openItemDetail(predItem)}
+                      >
+                        <span className="font-mono text-xs text-slate-400">
+                          {predItem?.ticket_number || predId}
+                        </span>
+                        <span className="text-xs text-slate-200 truncate">
+                          {predItem?.title || 'Unknown Task'}
+                        </span>
+                        {predItem && (
+                          <span 
+                            className="text-[10px] px-1.5 py-0.5 rounded border ml-auto"
+                            style={{ borderColor: predItem.status_color, color: predItem.status_color }}
+                          >
+                            {predItem.status}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="p-1 hover:text-red-400 text-slate-500 ml-2"
+                        onClick={() => removeDependencyLink(predId, selectedItem.id)}
+                        title="Remove prerequisite blocker"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-xs text-slate-500 italic p-2 bg-slate-950/40 rounded border border-slate-900">
+                  No blockers. This task can begin immediately.
+                </div>
+              )}
+
+              {/* Blocks (Downstream Dependents) */}
+              {(selectedItem.blocks && selectedItem.blocks.length > 0) && (
+                <div className="mt-3">
+                  <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1">
+                    Blocks (Downstream Tasks)
+                  </div>
+                  {selectedItem.blocks.map((succId) => {
+                    const succItem = boardItems.find((i) => i.id === succId);
+                    return (
+                      <div 
+                        key={succId}
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-900/40 border border-slate-800/60 hover:border-slate-700 cursor-pointer transition-colors"
+                        onClick={() => succItem && openItemDetail(succItem)}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="font-mono text-xs text-amber-400">
+                            {succItem?.ticket_number || succId}
+                          </span>
+                          <span className="text-xs text-slate-200 truncate">
+                            {succItem?.title || 'Unknown Task'}
+                          </span>
+                        </div>
+                        {succItem && (
+                          <span 
+                            className="text-[10px] px-1.5 py-0.5 rounded border"
+                            style={{ borderColor: succItem.status_color, color: succItem.status_color }}
+                          >
+                            {succItem.status}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add Blocker Dropdown */}
+              <div className="mt-2 relative">
+                <button
+                  type="button"
+                  className="text-xs px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5"
+                  onClick={() => setIsDepDropdownOpen(!isDepDropdownOpen)}
+                >
+                  <Plus size={12} />
+                  <span>Add Blocker Task</span>
+                </button>
+
+                {isDepDropdownOpen && (
+                  <div className="dropdown-popover glass-panel animate-pop-in absolute left-0 top-8 z-50 w-72 max-h-56 overflow-y-auto">
+                    {boardItems
+                      .filter((i) => i.id !== selectedItem.id && !(selectedItem.blocked_by || []).includes(i.id))
+                      .map((candidate) => {
+                        const wouldCauseCycle = detectDependencyCycle(boardItems, candidate.id, selectedItem.id);
+                        return (
+                          <button
+                            key={candidate.id}
+                            type="button"
+                            disabled={wouldCauseCycle}
+                            className={`dropdown-option flex items-center justify-between w-full text-left p-2 text-xs ${wouldCauseCycle ? 'opacity-40 cursor-not-allowed' : ''}`}
+                            onClick={() => {
+                              if (!wouldCauseCycle) {
+                                addDependencyLink(candidate.id, selectedItem.id);
+                                setIsDepDropdownOpen(false);
+                              }
+                            }}
+                          >
+                            <span className="truncate flex-1">
+                              {candidate.ticket_number ? `${candidate.ticket_number}: ` : ''}{candidate.title}
+                            </span>
+                            {wouldCauseCycle && (
+                              <span className="text-[10px] text-red-400 ml-1">Cycle</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
                 )}
               </div>
             </div>

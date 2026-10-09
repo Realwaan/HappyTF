@@ -20,6 +20,7 @@ timeline
     Phase 4 (Workflow Automation) : Two-Way Slack Bot : GitHub PR Auto-Merge Transitions : Custom Automation Triggers
     Phase 5 (Scale & Offline PWA) : IndexedDB Offline-First Sync : Service Worker Background Push : 100k Row WASM Aggregations
     Phase 6 (Sprint Intelligence & AI Copilot) : Autonomous Spec Expander : Blocker Risk Predictor : Workload Rebalancer : Natural Language Board Filter
+    Phase 7 (Interactive Gantt & Critical Path) : CPM Bottleneck Calculation : Bidirectional Dependency Links : Auto-Cascading Shifts : Cycle Detection Guard
 ```
 
 ---
@@ -157,3 +158,33 @@ timeline
 4. **Comprehensive Vitest Suite**:
    - `tests/ai_sprint_copilot.test.ts` (5 tests) & `tests/ai_copilot_modal.test.ts` (5 tests).
    - Entire workspace passes 100% green across 19 test files (93 tests).
+
+---
+
+## Phase 7: Interactive Gantt & Critical Path Engine (CPM & Dependency Topology) — [COMPLETED]
+
+**Goal:** Provide full project management dependency graphs with real-time Critical Path Method (CPM) bottleneck calculations, circular dependency guards, and auto-cascading schedule adjustments.
+
+### Completed Deliverables:
+1. **Critical Path Method (CPM) Domain Engine (`src/lib/timeline/criticalPathEngine.ts`)**:
+   - **Forward Pass (Early Start & Early Finish)**: Computes topological ordering via Kahn's algorithm and resolves earliest possible completion times.
+   - **Backward Pass (Late Start & Late Finish)**: Traverses backward from total project duration to compute latest start dates without delaying overall delivery.
+   - **Slack / Float Calculation**: Computes `LS - ES` slack days for every task in the dependency graph.
+   - **Critical Bottleneck Identification**: Zero-slack nodes on the longest duration path are flagged with `isCritical: true`.
+   - **Circular Dependency Guard (`detectDependencyCycle`)**: Traverses existing links via DFS to identify and reject cycle-inducing links before mutation.
+   - **Auto-Cascading Shift Engine (`cascadeScheduleShift`)**: When a predecessor shifts forward in time, all downstream blocked tasks with insufficient slack automatically shift their `start_date` and `due_date` while incrementing monotonic OCC version tokens.
+   - **Bidirectional Dependency Linkers (`addDependencyLink`, `removeDependencyLink`)**: Symmetrically updates `blocked_by` and `blocks` relations.
+2. **Interactive Timeline & Gantt View (`src/components/board/TimelineView.tsx`)**:
+   - **Critical Path Glowing Aura**: Pulsing crimson/amber border highlight on zero-slack bottleneck tasks (`#toggle-critical-path-btn`).
+   - **Interactive Date Shifting Handles**: Left (`‹`) and Right (`›`) handles on each bar to quickly shift schedule dates by -1d or +1d.
+   - **Auto-Cascade Mode Switch**: Toggle to propagate delays through downstream dependencies automatically.
+   - **Dependency Chips & Quick Linker**: Visual pills (`🔗 X blockers`, `⛔ blocks Y`) and an interactive Blocker Picker modal with real-time circular dependency detection.
+   - **Dynamic Zoom Levels**: 14-day sprint view and 28-day month view.
+3. **Item Detail Panel Integration (`src/components/board/ItemDetailPanel.tsx`)**:
+   - Dedicated **Dependencies & Critical Path** section in task details.
+   - Direct jump navigation to blockers and downstream dependents.
+   - Inline Start Date and Target SLA date editors.
+4. **Comprehensive Vitest Suite**:
+   - `tests/critical_path_engine.test.ts` (9 tests) & `tests/interactive_timeline.test.ts` (5 tests).
+   - Workspace passes 100% green across 21 test files (107 tests).
+

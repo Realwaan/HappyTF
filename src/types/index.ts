@@ -247,7 +247,11 @@ export interface BoardItem {
   status_color: string;
   priority: 'urgent' | 'high' | 'medium' | 'low';
   severity?: 'critical' | 'major' | 'minor' | 'cosmetic';
+  start_date?: string;
   due_date: string;
+  duration_days?: number;
+  blocked_by?: string[];
+  blocks?: string[];
   sla_due_at?: string;
   workspace_id?: string;
   assignee?: {

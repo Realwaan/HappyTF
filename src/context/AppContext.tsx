@@ -56,6 +56,11 @@ import {
   getPendingOfflineMutations, 
   removeOfflineMutation 
 } from '../lib/offline/indexedDbStore';
+import { 
+  addDependencyLink, 
+  removeDependencyLink, 
+  cascadeScheduleShift 
+} from '../lib/timeline/criticalPathEngine';
 
 interface AppContextType {
   currentUser: UserProfile | null;
@@ -153,6 +158,9 @@ interface AppContextType {
   updateBoardItem: (itemId: string, updates: Partial<BoardItem>, ifVersion?: number) => { success: boolean; error?: string };
   claimBoardItem: (itemId: string, ifVersion?: number) => { success: boolean; error?: string };
   deleteBoardItem: (itemId: string) => void;
+  addDependencyLink: (prerequisiteId: string, dependentId: string) => { success: boolean; error?: string };
+  removeDependencyLink: (prerequisiteId: string, dependentId: string) => { success: boolean };
+  cascadeScheduleShift: (movedItemId: string, daysShifted: number) => { success: boolean; shiftedCount: number };
   addItemComment: (itemId: string, content: string) => void;
   deleteItemComment: (itemId: string, commentId: string) => void;
   toggleCommentReaction: (itemId: string, commentId: string, emoji: string) => void;
@@ -1834,6 +1842,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return result;
   }, [activeBoardId, itemsMap, automationRules]);
 
+  const addDependencyLinkAction = useCallback((prerequisiteId: string, dependentId: string) => {
+    if (!activeBoardId) return { success: false, error: 'No active board' };
+    const currentList = itemsMap[activeBoardId] || [];
+    const res = addDependencyLink(currentList, prerequisiteId, dependentId);
+    if (!res.success) {
+      return { success: false, error: res.error };
+    }
+    setItemsMap((prev) => ({
+      ...prev,
+      [activeBoardId]: res.items,
+    }));
+    if (selectedItemRef.current) {
+      const updatedSel = res.items.find((i) => i.id === selectedItemRef.current?.id);
+      if (updatedSel) setSelectedItem(updatedSel);
+    }
+    playTransitionSound();
+    return { success: true };
+  }, [activeBoardId, itemsMap]);
+
+  const removeDependencyLinkAction = useCallback((prerequisiteId: string, dependentId: string) => {
+    if (!activeBoardId) return { success: false };
+    const currentList = itemsMap[activeBoardId] || [];
+    const res = removeDependencyLink(currentList, prerequisiteId, dependentId);
+    setItemsMap((prev) => ({
+      ...prev,
+      [activeBoardId]: res.items,
+    }));
+    if (selectedItemRef.current) {
+      const updatedSel = res.items.find((i) => i.id === selectedItemRef.current?.id);
+      if (updatedSel) setSelectedItem(updatedSel);
+    }
+    return { success: true };
+  }, [activeBoardId, itemsMap]);
+
+  const cascadeScheduleShiftAction = useCallback((movedItemId: string, daysShifted: number) => {
+    if (!activeBoardId) return { success: false, shiftedCount: 0 };
+    const currentList = itemsMap[activeBoardId] || [];
+    const res = cascadeScheduleShift(currentList, movedItemId, daysShifted);
+    if (res.shiftedCount > 0) {
+      setItemsMap((prev) => ({
+        ...prev,
+        [activeBoardId]: res.updatedItems,
+      }));
+      if (selectedItemRef.current) {
+        const updatedSel = res.updatedItems.find((i) => i.id === selectedItemRef.current?.id);
+        if (updatedSel) setSelectedItem(updatedSel);
+      }
+    }
+    return { success: true, shiftedCount: res.shiftedCount };
+  }, [activeBoardId, itemsMap]);
+
   const claimBoardItem = (
     itemId: string,
     ifVersion?: number
@@ -3034,6 +3093,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createBoard,
         registerTicketBroadcaster,
         registerTicketBroadcasters,
+        addDependencyLink: addDependencyLinkAction,
+        removeDependencyLink: removeDependencyLinkAction,
+        cascadeScheduleShift: cascadeScheduleShiftAction,
       }}
     >
       {children}
