@@ -150,6 +150,9 @@ export function useRealtimeTickets({
   const onTicketDeleteRef = useRef(onTicketDelete);
   onTicketDeleteRef.current = onTicketDelete;
 
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+
   const simulatedUsersRef = useRef(simulatedUsers);
   simulatedUsersRef.current = simulatedUsers;
 
@@ -499,6 +502,7 @@ export function useRealtimeTickets({
   useEffect(() => {
     if (!boardId) return;
 
+    const currentSessionId = sessionIdRef.current;
     crossTabUsersRef.current = {};
     supabasePresenceListRef.current = [];
 
@@ -625,11 +629,12 @@ export function useRealtimeTickets({
             if (Array.isArray(newPresences)) {
               const now = Date.now();
               const myId = currentPresenceRef.current?.id;
+              const curUser = currentUserRef.current;
               newPresences.forEach((p: PresenceUser) => {
                 const isSelf =
                   p.id === myId ||
-                  p.id === currentUser?.id ||
-                  (currentUser?.full_name && p.name?.toLowerCase() === currentUser.full_name.toLowerCase());
+                  p.id === curUser?.id ||
+                  (curUser?.full_name && p.name?.toLowerCase() === curUser.full_name.toLowerCase());
 
                 if (!isSelf && p.id) {
                   const lastToasted = recentJoinToastsRef.current.get(p.id) || 0;
@@ -796,7 +801,7 @@ export function useRealtimeTickets({
           bc.postMessage({
             type: 'PRESENCE_LEAVE',
             payload: {
-              sessionId: sessionIdRef.current,
+              sessionId: currentSessionId,
             },
           });
           bc.close();
