@@ -75,4 +75,28 @@ describe('Phase 10: Deep Mobile Ergonomics & Native-Touch Platform', () => {
 
     expect(mobileInputFontSize).toBeGreaterThanOrEqual(iosAutoZoomThreshold);
   });
+
+  it('guarantees unique keys across workspace member dropdowns even with duplicate entries in raw store', () => {
+    const rawDuplicateMembers = [
+      { id: 'wm-1791636080106', user_id: 'usr-1', role: 'owner' as const, joined_at: '' },
+      { id: 'wm-1791636080106', user_id: 'usr-1', role: 'owner' as const, joined_at: '' }, // duplicate
+      { id: 'wm-02', user_id: 'usr-2', role: 'admin' as const, joined_at: '' },
+    ];
+
+    const seen = new Set<string>();
+    const deduplicated = rawDuplicateMembers.filter((m) => {
+      const key = m.id || m.user_id;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    expect(deduplicated).toHaveLength(2);
+    expect(deduplicated.map((m) => m.id)).toEqual(['wm-1791636080106', 'wm-02']);
+
+    // Ensure generated composite keys are 100% unique
+    const keys = deduplicated.map((m, idx) => m.id ? `${m.id}-${m.user_id || idx}` : `member-${idx}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
 });
+

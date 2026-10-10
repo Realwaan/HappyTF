@@ -145,8 +145,8 @@ export const QuickCreateTaskModal: React.FC<QuickCreateTaskModalProps> = ({ isOp
                 onChange={(e) => setAssigneeId(e.target.value)}
                 className="select-input"
               >
-                {members.map((m) => (
-                  <option key={m.id} value={m.user_id}>
+                {members.map((m, idx) => (
+                  <option key={m.id ? `${m.id}-${m.user_id || idx}` : `member-${idx}`} value={m.user_id}>
                     {m.profile?.full_name || 'Member'} ({m.role})
                   </option>
                 ))}

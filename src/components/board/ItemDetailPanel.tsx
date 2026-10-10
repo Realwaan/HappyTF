@@ -465,11 +465,11 @@ export const ItemDetailPanel: React.FC = () => {
                     <div className="text-[10px] font-semibold text-muted px-2 py-1 uppercase tracking-wider">
                       Reassign Task
                     </div>
-                    {members.map((m) => {
+                    {members.map((m, idx) => {
                       const isCurrent = (m.user_id === selectedItem.assignee?.id) || (m.profile?.full_name === selectedItem.assignee?.name);
                       return (
                         <button
-                          key={m.id}
+                          key={m.id ? `${m.id}-${m.user_id || idx}` : `member-${idx}`}
                           type="button"
                           className={`dropdown-option flex items-center gap-2 ${isCurrent ? 'active' : ''}`}
                           onClick={() => {

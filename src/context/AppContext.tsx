@@ -459,7 +459,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const decrypted = await decryptAtRest(savedMembers).catch(() => savedMembers);
           const parsed = JSON.parse(decrypted);
           if (parsed && typeof parsed === 'object' && !isCancelled) {
-            setMembersMap((prev) => ({ ...prev, ...parsed }));
+            const cleanedMap: Record<string, WorkspaceMember[]> = {};
+            for (const [wsId, mList] of Object.entries(parsed as Record<string, WorkspaceMember[]>)) {
+              if (Array.isArray(mList)) {
+                const seen = new Set<string>();
+                cleanedMap[wsId] = mList.filter((m) => {
+                  const key = m.id || m.user_id;
+                  if (!key || seen.has(key)) return false;
+                  seen.add(key);
+                  return true;
+                });
+              }
+            }
+            setMembersMap((prev) => ({ ...prev, ...cleanedMap }));
           }
         }
 
@@ -1010,7 +1022,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
-  const currentMembers = useMemo(() => (currentWorkspace ? (membersMap[currentWorkspace.id] || []) : []), [currentWorkspace, membersMap]);
+  const currentMembers = useMemo(() => {
+    if (!currentWorkspace) return [];
+    const list = membersMap[currentWorkspace.id] || [];
+    const seen = new Set<string>();
+    return list.filter((m) => {
+      const key = m.id || m.user_id;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [currentWorkspace, membersMap]);
   const currentBoards = useMemo(() => (currentWorkspace ? (boardsMap[currentWorkspace.id] || []) : []), [currentWorkspace, boardsMap]);
 
   const activeBoard = useMemo(() => {
@@ -2455,8 +2477,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setWorkspaces((prev) => [...prev, newWs]);
     setCurrentWorkspace(newWs);
 
+    const memberSuffix = Math.random().toString(36).substring(2, 8);
     const newMember: WorkspaceMember = {
-      id: `wm-${Date.now()}`,
+      id: `wm-${Date.now()}-${memberSuffix}`,
       workspace_id: newWs.id,
       user_id: creatorId,
       role: 'owner',
@@ -2554,14 +2577,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const inviteMember = (email: string, role: WorkspaceRole) => {
     if (!currentWorkspace) return;
     const wsId = currentWorkspace.id;
+    const existing = (membersMap[wsId] || []).find((m) => m.profile?.email?.toLowerCase() === email.toLowerCase());
+    if (existing) return;
+
+    const inviteSuffix = Math.random().toString(36).substring(2, 8);
     const newMember: WorkspaceMember = {
-      id: `wm-${Date.now()}`,
+      id: `wm-${Date.now()}-${inviteSuffix}`,
       workspace_id: wsId,
-      user_id: `usr-${Date.now()}`,
+      user_id: `usr-${Date.now()}-${inviteSuffix}`,
       role,
       joined_at: new Date().toISOString(),
       profile: {
-        id: `usr-${Date.now()}`,
+        id: `usr-${Date.now()}-${inviteSuffix}`,
         email,
         full_name: email.split('@')[0],
         avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email)}&backgroundColor=8b5cf6`,
@@ -2572,7 +2599,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setMembersMap((prev) => ({
       ...prev,
-      [wsId]: [...(prev[wsId] || []), newMember],
+      [wsId]: [...(prev[wsId] || []).filter((m) => m.id !== newMember.id && m.profile?.email?.toLowerCase() !== email.toLowerCase()), newMember],
     }));
 
     setWorkspaces((prev) =>

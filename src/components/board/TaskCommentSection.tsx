@@ -411,11 +411,11 @@ export const TaskCommentSection: React.FC<TaskCommentSectionProps> = ({ item, li
                 {filteredMembers.length === 0 ? (
                   <div className="mention-empty">No matching team members</div>
                 ) : (
-                  filteredMembers.map((m) => {
+                  filteredMembers.map((m, idx) => {
                     const memberName = m.profile?.full_name || m.profile?.email || 'Teammate';
                     return (
                       <button
-                        key={m.id}
+                        key={m.id ? `${m.id}-${m.user_id || idx}` : `mention-${idx}`}
                         type="button"
                         className="mention-option"
                         onClick={() => insertMention(memberName)}

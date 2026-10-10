@@ -251,8 +251,8 @@ export const WorkspaceSettingsModal: React.FC = () => {
 
               {/* Member list */}
               <div className="member-list" id="member-list-container">
-                {members.map((member) => (
-                  <div key={member.id} className="member-row" id={`member-row-${member.id}`}>
+                {members.map((member, idx) => (
+                  <div key={member.id ? `${member.id}-${member.user_id || idx}` : `member-${idx}`} className="member-row" id={`member-row-${member.id}`}>
                     <div className="member-info">
                       <img
                         src={getSafeAvatar(member.profile?.avatar_url, member.profile?.full_name)}
