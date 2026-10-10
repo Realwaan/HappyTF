@@ -524,6 +524,33 @@ export const IntakeShareModal: React.FC<IntakeShareModalProps> = ({
           background: rgba(16, 185, 129, 0.2);
           color: #34d399;
         }
+
+        @media (max-width: 600px) {
+          .intake-modal {
+            max-height: 92vh;
+            border-radius: 16px 16px 0 0;
+            margin-top: auto;
+          }
+
+          .modal-header {
+            padding: 14px 16px;
+          }
+
+          .tab-content {
+            padding: 16px 14px;
+            gap: 14px;
+          }
+
+          .url-input-group {
+            flex-direction: column;
+            gap: 6px;
+          }
+
+          .copy-btn {
+            width: 100%;
+            justify-content: center;
+          }
+        }
       `}</style>
     </div>
   );

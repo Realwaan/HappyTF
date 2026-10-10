@@ -817,6 +817,16 @@ a {
     justify-content: flex-start !important;
     flex-wrap: wrap !important;
   }
+
+  /* iOS Safari auto-zoom prevention: inputs, textareas, and selects must be >= 16px */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Ergonomic mobile touch responsiveness */
+  button, a, input, select, textarea {
+    touch-action: manipulation;
+  }
 }
 
 @media (min-width: 769px) {

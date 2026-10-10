@@ -903,6 +903,76 @@ export const MyWorkDashboard: React.FC = () => {
           color: var(--text-secondary);
           max-width: 320px;
         }
+
+        @media (max-width: 768px) {
+          .mywork-container {
+            padding: 16px 14px 32px;
+            gap: 20px;
+          }
+
+          .mywork-hero {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 14px;
+          }
+
+          .hero-text-col h1 {
+            font-size: 22px;
+          }
+
+          .hero-actions {
+            width: 100%;
+            display: flex;
+            gap: 8px;
+          }
+
+          .hero-actions .btn {
+            flex: 1;
+            justify-content: center;
+          }
+
+          .metrics-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+          }
+
+          .metric-card {
+            padding: 14px;
+          }
+
+          .table-header-row {
+            display: none !important;
+          }
+
+          .table-item-row {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+            padding: 14px 16px !important;
+          }
+
+          .filter-chips-group {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            width: 100%;
+            padding-bottom: 4px;
+          }
+          .filter-chips-group::-webkit-scrollbar {
+            display: none;
+          }
+
+          .boards-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 440px) {
+          .metrics-grid {
+            grid-template-columns: 1fr;
+          }
+        }
       `}</style>
     </div>
   );

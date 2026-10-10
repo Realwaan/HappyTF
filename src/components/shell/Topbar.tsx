@@ -203,11 +203,23 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
 
         {/* Utility Tools Group */}
         <div className="topbar-tools-group">
+          {/* Mobile Search Button (Visible on screens <= 768px) */}
+          <button
+            id="topbar-mobile-search-btn"
+            type="button"
+            className="icon-tool-btn mobile-only-tool"
+            onClick={() => setCommandPaletteOpen(true)}
+            title="Search (⌘K)"
+            aria-label="Search boards, items, or jump to..."
+          >
+            <Search size={16} />
+          </button>
+
           {/* Keyboard Shortcuts Trigger */}
           <button
             id="topbar-shortcuts-btn"
             type="button"
-            className="icon-tool-btn"
+            className="icon-tool-btn desktop-only-tool"
             onClick={() => setShortcutsModalOpen(true)}
             title="Keyboard Shortcuts (?)"
             aria-label="Keyboard Shortcuts"
@@ -948,6 +960,32 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenAuth }) => {
         .logout-btn:hover {
           color: var(--danger);
           background: var(--danger-bg);
+        }
+
+        .mobile-only-tool {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .mobile-only-tool {
+            display: inline-flex !important;
+          }
+          .desktop-only-tool {
+            display: none !important;
+          }
+          .topbar-invite-btn {
+            display: none !important;
+          }
+          .topbar-v-divider {
+            display: none !important;
+          }
+          .topbar-cta-btn {
+            padding: 6px 10px !important;
+            font-size: 11px !important;
+          }
+          .breadcrumb-pill {
+            max-width: 190px;
+          }
         }
       `}</style>
     </header>

@@ -872,3 +872,12 @@ body:has(.app-shell-root) {
   background: var(--bg-hover);
 }
 
+@media (max-width: 768px) {
+  .collaborator-toast-container {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 12px !important;
+    left: 12px !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+}
+

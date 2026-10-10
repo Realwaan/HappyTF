@@ -20,7 +20,10 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
+let memorySoundPref: boolean | null = null;
+
 export function isSoundEnabled(): boolean {
+  if (memorySoundPref !== null) return memorySoundPref;
   if (typeof window === 'undefined') return true;
   try {
     const val = localStorage.getItem('happytf_sound_fx');
@@ -31,6 +34,7 @@ export function isSoundEnabled(): boolean {
 }
 
 export function setSoundEnabled(enabled: boolean): void {
+  memorySoundPref = enabled;
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem('happytf_sound_fx', String(enabled));

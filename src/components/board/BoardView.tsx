@@ -2282,6 +2282,90 @@ export const BoardView: React.FC = () => {
           color: var(--text-primary);
           background: rgba(255, 255, 255, 0.08);
         }
+
+        @media (max-width: 768px) {
+          .board-view-container {
+            padding: 14px 12px 28px;
+            gap: 16px;
+          }
+
+          .header-top-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 14px;
+          }
+
+          .board-title {
+            font-size: 20px;
+          }
+
+          .board-meta-right {
+            width: 100%;
+            overflow-x: auto;
+            flex-wrap: nowrap !important;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            padding-bottom: 6px;
+            gap: 8px;
+          }
+          .board-meta-right::-webkit-scrollbar {
+            display: none;
+          }
+
+          .board-meta-right > button,
+          .board-meta-right > div {
+            flex-shrink: 0;
+            white-space: nowrap;
+          }
+
+          .board-controls-bar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+            padding: 10px;
+          }
+
+          .view-mode-tabs {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+          }
+          .view-mode-tabs::-webkit-scrollbar {
+            display: none;
+          }
+
+          .view-tab-btn, .view-tab {
+            flex: 1;
+            justify-content: center;
+            padding: 8px 10px;
+            white-space: nowrap;
+          }
+
+          .controls-right-group, .filters-right {
+            width: 100%;
+            flex-direction: column;
+            gap: 8px;
+          }
+
+          .search-input-wrapper, .search-box {
+            width: 100%;
+          }
+
+          .board-search-field {
+            width: 100%;
+            flex: 1;
+          }
+
+          .filter-select {
+            width: 100%;
+          }
+
+          .collaborator-presence-popover {
+            width: calc(100vw - 32px);
+            right: -10px;
+          }
+        }
       `}</style>
     </div>
   );

@@ -18,6 +18,7 @@ import { DiscordIntegrationModal } from '../workspace/DiscordIntegrationModal';
 import { WorkflowAutomationModal } from '../automation/WorkflowAutomationModal';
 import { ColumnarAnalyticsModal } from '../analytics/ColumnarAnalyticsModal';
 import { AiCopilotModal } from '../ai/AiCopilotModal';
+import { MobileBottomNav } from './MobileBottomNav';
 import { SmartGeneratedTicket } from '../../lib/ai/sprintCopilot';
 
 interface AppShellProps {
@@ -158,10 +159,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         onAddTickets={handleAddCopilotTickets}
       />
 
+      {/* Persistent Mobile Bottom Navigation Bar (Screens <= 768px) */}
+      <MobileBottomNav />
+
       <style jsx>{`
         .app-shell-root {
           display: flex;
           height: 100vh;
+          height: 100dvh;
           width: 100vw;
           overflow: hidden;
           background: var(--bg-canvas);
@@ -176,6 +181,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           flex-direction: column;
           min-width: 0;
           height: 100vh;
+          height: 100dvh;
           overflow: hidden;
         }
 
@@ -185,6 +191,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           overflow-y: auto;
           overflow-x: hidden;
           background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.04) 0%, transparent 70%);
+        }
+
+        @media (max-width: 768px) {
+          .app-viewport {
+            padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+            -webkit-overflow-scrolling: touch;
+          }
         }
       `}</style>
     </div>

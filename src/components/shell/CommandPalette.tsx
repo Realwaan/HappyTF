@@ -423,6 +423,31 @@ export const CommandPalette: React.FC = () => {
         .active-ws-hint strong {
           color: var(--text-primary);
         }
+
+        @media (max-width: 640px) {
+          .palette-overlay {
+            padding-top: 32px;
+            padding-left: 12px;
+            padding-right: 12px;
+          }
+
+          .palette-modal {
+            max-width: 100%;
+            border-radius: 14px;
+          }
+
+          .search-bar-row {
+            padding: 12px 14px;
+          }
+
+          .footer-keys {
+            display: none;
+          }
+
+          .palette-footer {
+            justify-content: center;
+          }
+        }
       `}</style>
     </div>
   );

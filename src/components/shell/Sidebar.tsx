@@ -83,6 +83,13 @@ export const Sidebar: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
+  const handleMobileNav = (action: () => void) => {
+    action();
+    if (isMobileSidebarOpen) {
+      setMobileSidebarOpen(false);
+    }
+  };
+
   return (
     <>
       {isMobileSidebarOpen && (
@@ -201,7 +208,7 @@ export const Sidebar: React.FC = () => {
         <div className="nav-top-section">
           <button
             type="button"
-            onClick={navigateToHome}
+            onClick={() => handleMobileNav(navigateToHome)}
             className={`nav-link ${activeView === 'home' ? 'active' : ''}`}
             id="nav-home-link"
             title="Home & My Work"
@@ -216,13 +223,15 @@ export const Sidebar: React.FC = () => {
             className={`nav-link ${activeView === 'board' && boardViewMode === 'dashboard' ? 'active' : ''}`}
             title="Dashboards & Sprint Analytics"
             onClick={() => {
-              if (activeBoardId) {
-                navigateToBoard(activeBoardId);
-                setBoardViewMode('dashboard');
-              } else if (recentBoards.length > 0) {
-                navigateToBoard(recentBoards[0].id);
-                setBoardViewMode('dashboard');
-              }
+              handleMobileNav(() => {
+                if (activeBoardId) {
+                  navigateToBoard(activeBoardId);
+                  setBoardViewMode('dashboard');
+                } else if (recentBoards.length > 0) {
+                  navigateToBoard(recentBoards[0].id);
+                  setBoardViewMode('dashboard');
+                }
+              });
             }}
           >
             <PieChart size={18} />
@@ -239,7 +248,7 @@ export const Sidebar: React.FC = () => {
             id="nav-chat-link"
             className={`nav-link ${activeView === 'chat' ? 'active' : ''}`}
             title="Team Chat & Workspace Channels"
-            onClick={() => navigateToChat()}
+            onClick={() => handleMobileNav(() => navigateToChat())}
           >
             <MessageSquare size={18} />
             {!isSidebarCollapsed && (
@@ -371,7 +380,7 @@ export const Sidebar: React.FC = () => {
                 type="button"
                 className={`board-nav-item ${activeView === 'chat' && activeTeamChannelId === chan.id ? 'active' : ''}`}
                 title={`#${chan.name}`}
-                onClick={() => navigateToChat(chan.id)}
+                onClick={() => handleMobileNav(() => navigateToChat(chan.id))}
               >
                 <span className="channel-icon-wrap text-muted" style={{ display: 'flex', alignItems: 'center' }}>
                   <Hash size={14} />
@@ -445,7 +454,7 @@ export const Sidebar: React.FC = () => {
                   type="button"
                   className={`board-nav-item ${activeBoardId === b.id && activeView === 'board' ? 'active' : ''}`}
                   title={b.name}
-                  onClick={() => navigateToBoard(b.id)}
+                  onClick={() => handleMobileNav(() => navigateToBoard(b.id))}
                   style={{ width: '100%', paddingRight: !isSidebarCollapsed ? '28px' : undefined }}
                 >
                   <span className="board-icon-wrap">

@@ -240,6 +240,9 @@ export const ItemDetailPanel: React.FC = () => {
         id="item-detail-drawer"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile Pull Handle Pill */}
+        <div className="mobile-drawer-pull-pill" />
+
         {/* 1. Drawer Header & Sequential Navigation */}
         <div className="drawer-header">
           <div className="header-left flex items-center gap-2 flex-wrap">
@@ -1542,6 +1545,75 @@ export const ItemDetailPanel: React.FC = () => {
           display: flex;
           align-items: center;
           justify-content: space-between;
+        }
+
+        .mobile-drawer-pull-pill {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .panel-overlay {
+            align-items: flex-end;
+          }
+
+          .mobile-drawer-pull-pill {
+            display: block;
+            width: 36px;
+            height: 4px;
+            border-radius: 999px;
+            background: var(--border-subtle);
+            margin: 8px auto 4px;
+            flex-shrink: 0;
+          }
+
+          .item-drawer {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            height: 94dvh !important;
+            border-radius: 20px 20px 0 0 !important;
+            border-left: none !important;
+            border-top: 1px solid var(--border-default) !important;
+            box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.8) !important;
+          }
+
+          .drawer-header {
+            padding: 10px 14px;
+            flex-wrap: wrap;
+            gap: 8px;
+          }
+
+          .header-left {
+            max-width: calc(100% - 110px);
+          }
+
+          .icon-btn {
+            width: 34px;
+            height: 34px;
+          }
+
+          .drawer-body {
+            padding: 14px 12px;
+            gap: 16px;
+          }
+
+          .item-title-input {
+            font-size: 16px !important;
+          }
+
+          .properties-grid {
+            padding: 12px 10px;
+            gap: 10px;
+          }
+
+          .property-row {
+            grid-template-columns: 100px 1fr;
+            font-size: 12px;
+            gap: 8px;
+          }
+
+          .drawer-footer {
+            padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+          }
         }
       `}</style>
     </div>

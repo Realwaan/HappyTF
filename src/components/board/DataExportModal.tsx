@@ -746,6 +746,34 @@ export const DataExportModal: React.FC<DataExportModalProps> = ({
           color: #38bdf8;
           margin-top: 2px;
         }
+
+        @media (max-width: 600px) {
+          .export-modal {
+            max-height: 92vh;
+            border-radius: 16px 16px 0 0;
+            margin-top: auto;
+          }
+
+          .modal-header {
+            padding: 14px 16px;
+          }
+
+          .modal-tabs {
+            padding: 0 14px;
+            overflow-x: auto;
+            scrollbar-width: none;
+          }
+
+          .tab-body {
+            padding: 16px 14px;
+            gap: 14px;
+          }
+
+          .format-selection-grid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+          }
+        }
       `}</style>
     </div>
   );

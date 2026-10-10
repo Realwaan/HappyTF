@@ -821,6 +821,37 @@ export function KanbanBoard({
           0%, 100% { opacity: 1; }
           50% { opacity: 0.6; }
         }
+
+        @media (max-width: 768px) {
+          .kb-root {
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            scroll-padding: 0 14px;
+            padding-bottom: 20px;
+          }
+          .kb-columns-grid {
+            display: flex;
+            min-width: unset;
+            gap: 14px;
+            padding-right: 14px;
+          }
+          .kb-column {
+            flex: 0 0 calc(100vw - 44px);
+            max-width: calc(100vw - 44px);
+            scroll-snap-align: center;
+            min-height: 380px;
+            padding: 12px;
+          }
+          .kb-drag-handle {
+            opacity: 0.8 !important;
+            padding: 8px;
+            top: 6px;
+            right: 6px;
+          }
+          .kb-card {
+            padding: 14px 14px 12px;
+          }
+        }
       `}</style>
     </div>
   );
