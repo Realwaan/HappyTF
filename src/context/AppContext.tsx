@@ -1384,11 +1384,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const navigateToHome = () => {
+    setSelectedItem(null);
     setActiveBoardId(null);
     setActiveView('home');
   };
 
   const navigateToChat = (channelId?: string) => {
+    setSelectedItem(null);
     if (channelId) setActiveTeamChannelId(channelId);
     setActiveBoardId(null);
     setActiveView('chat');

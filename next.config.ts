@@ -30,6 +30,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  devIndicators: {
+    buildActivityPosition: 'bottom-right',
+    appIsrStatus: false,
+  },
   transpilePackages: ['lucide-react'],
   eslint: {
     ignoreDuringBuilds: true,

@@ -1606,8 +1606,21 @@ export const BoardView: React.FC = () => {
         .board-meta-right {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 6px;
           flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .board-meta-right .btn {
+          padding: 5px 9px;
+          font-size: 11px;
+          height: 28px;
+          border-radius: 6px;
+          gap: 4px;
+        }
+
+        .board-meta-right .btn:hover {
+          transform: translateY(-1px);
         }
 
         .avatar-stack {
@@ -1920,7 +1933,25 @@ export const BoardView: React.FC = () => {
         }
 
         .group-table-content {
-          overflow: visible;
+          overflow-x: auto;
+          overflow-y: visible;
+          -webkit-overflow-scrolling: touch;
+          position: relative;
+          scrollbar-width: thin;
+          scrollbar-color: var(--border-default) transparent;
+        }
+        .group-table-content::-webkit-scrollbar {
+          height: 6px;
+        }
+        .group-table-content::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.15);
+        }
+        .group-table-content::-webkit-scrollbar-thumb {
+          background: var(--border-default);
+          border-radius: 4px;
+        }
+        .group-table-content::-webkit-scrollbar-thumb:hover {
+          background: var(--text-muted);
         }
 
         .mobile-columns-wrap {
@@ -2025,6 +2056,9 @@ export const BoardView: React.FC = () => {
           .col-name {
             width: 100% !important;
             padding-right: 0 !important;
+            position: static !important;
+            box-shadow: none !important;
+            background: transparent !important;
           }
           .mobile-columns-wrap {
             display: flex !important;
@@ -2044,6 +2078,20 @@ export const BoardView: React.FC = () => {
           gap: 10px;
           min-width: 0;
           padding-right: 12px;
+          position: sticky;
+          left: 0;
+          z-index: 5;
+          background: var(--bg-surface);
+          box-shadow: 4px 0 8px -2px rgba(0, 0, 0, 0.35);
+        }
+
+        .table-header-grid .col-name {
+          background: #0d111a;
+          z-index: 6;
+        }
+
+        .table-row:hover .col-name {
+          background: var(--bg-hover);
         }
 
         .issue-key-badge {
@@ -2169,6 +2217,10 @@ export const BoardView: React.FC = () => {
           border-bottom-left-radius: 11px;
           border-bottom-right-radius: 11px;
           font-size: 11px;
+          position: sticky;
+          left: 0;
+          width: fit-content;
+          min-width: 100%;
         }
 
         .footer-status-group {

@@ -419,6 +419,45 @@ a {
   border: 1px solid transparent;
   transition: all var(--transition-fast);
 }
+
+/* Universal Avatar Utility Classes */
+.mini-avatar,
+.avatar-xs {
+  width: 22px !important;
+  height: 22px !important;
+  max-width: 22px !important;
+  max-height: 22px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  border: 1px solid var(--border-default) !important;
+  flex-shrink: 0 !important;
+  display: inline-block !important;
+}
+
+.avatar-sm {
+  width: 28px !important;
+  height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  border: 1.5px solid var(--border-default) !important;
+  flex-shrink: 0 !important;
+  display: inline-block !important;
+}
+
+.avatar-md {
+  width: 36px !important;
+  height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  border: 2px solid var(--border-default) !important;
+  flex-shrink: 0 !important;
+  display: inline-block !important;
+}
+
 .status-badge.working {
   background: var(--status-working-bg);
   border-color: var(--status-working-border);
@@ -886,4 +925,108 @@ a {
   max-width: 90vw;
   animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Universal Mini-Avatars */
+.mini-avatar,
+.kb-assignee-row .mini-avatar {
+  width: 22px !important;
+  height: 22px !important;
+  max-width: 22px !important;
+  max-height: 22px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  border: 1px solid var(--border-default) !important;
+  flex-shrink: 0 !important;
+  display: inline-block;
+}
+
+/* Subtle Claim Task Button */
+.btn-claim-subtle {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1.2;
+}
+.btn-claim-subtle:hover {
+  color: var(--primary);
+  background: rgba(62, 207, 142, 0.1);
+  border-color: rgba(62, 207, 142, 0.3);
+}
+
+/* Kanban Board Spacing & Header Layout */
+.kb-col-header-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+.kb-col-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: var(--text-primary) !important;
+  flex: 1 !important;
+}
+.kb-col-count {
+  font-size: 11px !important;
+  font-family: var(--font-mono) !important;
+  font-weight: 600 !important;
+  padding: 2px 8px !important;
+  border-radius: 9999px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--text-muted) !important;
+  border: 1px solid var(--border-subtle) !important;
+  margin-left: auto !important;
+}
+.kb-meta-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  min-height: 18px !important;
+}
+.kb-assignee-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+}
+.kb-empty-col {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 24px 12px !important;
+  text-align: center !important;
+  border: 1.5px dashed var(--border-subtle) !important;
+  border-radius: 10px !important;
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
+  min-height: 130px !important;
+}
+.kb-empty-text {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary) !important;
+  margin-top: 4px !important;
+  display: block !important;
+}
+.kb-empty-subtext {
+  font-size: 11px !important;
+  color: var(--text-muted) !important;
+  max-width: 150px !important;
+  line-height: 1.4 !important;
+  margin: 0 auto !important;
+  display: block !important;
+}
+
 

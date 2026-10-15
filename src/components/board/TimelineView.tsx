@@ -38,7 +38,16 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ groups, items, onSel
   const today = useMemo(() => new Date(), []);
   
   const timelineDays = useMemo(() => {
-    const days: { dateStr: string; label: string; isToday: boolean; dayNum: number; date: Date }[] = [];
+    const days: { 
+      dateStr: string; 
+      label?: string; 
+      isToday: boolean; 
+      dayNum: number; 
+      date: Date;
+      weekday: string;
+      dayNumber: number;
+      monthName: string;
+    }[] = [];
     const baseDate = new Date(today);
     baseDate.setHours(0, 0, 0, 0);
 
@@ -49,7 +58,9 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ groups, items, onSel
       const isToday = i === 0;
       days.push({
         dateStr,
-        label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' }),
+        weekday: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        dayNumber: d.getDate(),
+        monthName: d.toLocaleDateString('en-US', { month: 'short' }),
         isToday,
         dayNum: i,
         date: d,
@@ -64,19 +75,29 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ groups, items, onSel
 
   // Helper to compute left percentage and width percentage for a bar
   const getBarCoordinates = (item: BoardItem) => {
-    const sStr = item.start_date || timelineDays[2].dateStr; // default to today if unset
-    const dStr = item.due_date || addDays(sStr, 2);
+    let sStr = item.start_date || timelineDays[2].dateStr;
+    let sMs = new Date(sStr).getTime();
+    if (isNaN(sMs)) {
+      sStr = timelineDays[2].dateStr;
+      sMs = new Date(sStr).getTime();
+    }
 
-    const sMs = new Date(sStr).getTime();
-    const dMs = new Date(dStr).getTime();
+    let dStr = item.due_date;
+    let dMs = dStr ? new Date(dStr).getTime() : NaN;
+    if (isNaN(dMs) || dMs < sMs) {
+      dMs = sMs + 2 * dayMs;
+    }
 
     const startOffsetDays = Math.max(0, (sMs - startDateMs) / dayMs);
     const durationDays = Math.max(1, Math.round((dMs - sMs) / dayMs) + 1);
 
-    const leftPercent = Math.min(100, Math.max(0, (startOffsetDays / viewWindowDays) * 100));
-    const widthPercent = Math.min(100 - leftPercent, Math.max(2.5, (durationDays / viewWindowDays) * 100));
+    const safeDuration = isNaN(durationDays) ? 1 : durationDays;
+    const safeOffset = isNaN(startOffsetDays) ? 0 : startOffsetDays;
 
-    return { leftPercent, widthPercent, durationDays, startOffsetDays };
+    const leftPercent = Math.min(100, Math.max(0, (safeOffset / viewWindowDays) * 100));
+    const widthPercent = Math.min(100 - leftPercent, Math.max(3.5, (safeDuration / viewWindowDays) * 100));
+
+    return { leftPercent, widthPercent, durationDays: safeDuration, startOffsetDays: safeOffset };
   };
 
   // Adjust date shift for an item
@@ -210,7 +231,9 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ groups, items, onSel
                   key={td.dateStr} 
                   className={`header-day-cell ${td.isToday ? 'today-cell' : ''}`}
                 >
-                  {td.label}
+                  <span className="day-weekday">{td.weekday}</span>
+                  <span className="day-number">{td.dayNumber}</span>
+                  {td.dayNumber === 1 && <span className="day-month">{td.monthName}</span>}
                 </div>
               ))}
             </div>
@@ -623,16 +646,53 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ groups, items, onSel
         }
 
         .header-day-cell {
-          padding: 10px 4px;
+          padding: 6px 2px;
           border-right: 1px solid var(--border-subtle);
-          white-space: nowrap;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 1px;
+          user-select: none;
+        }
+
+        .day-weekday {
+          font-size: 9px;
+          font-weight: 600;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .day-number {
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--text-primary);
+          line-height: 1.2;
         }
 
         .header-day-cell.today-cell {
-          background: rgba(62, 207, 142, 0.12);
-          color: var(--primary-light);
-          font-weight: 700;
+          background: rgba(62, 207, 142, 0.1);
           border-bottom: 2px solid var(--primary);
+        }
+
+        .header-day-cell.today-cell .day-weekday {
+          color: var(--primary);
+        }
+
+        .header-day-cell.today-cell .day-number {
+          color: var(--primary);
+          background: rgba(62, 207, 142, 0.22);
+          padding: 0 5px;
+          border-radius: 9999px;
+        }
+
+        .day-month {
+          font-size: 8px;
+          font-weight: 800;
+          color: #818cf8;
+          text-transform: uppercase;
+          line-height: 1;
         }
 
         /* Groups */

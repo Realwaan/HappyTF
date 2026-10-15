@@ -486,7 +486,7 @@ export function KanbanBoard({
         </DragOverlay>
       </DndContext>
 
-      <style jsx>{`
+      <style jsx global>{`
         .kb-root {
           width: 100%;
           overflow-x: auto;
@@ -555,7 +555,7 @@ export function KanbanBoard({
           color: var(--col-color);
         }
         .kb-col-title {
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 700;
           color: var(--text-primary);
           flex: 1;
@@ -563,9 +563,10 @@ export function KanbanBoard({
         .kb-col-count {
           font-size: 11px;
           font-family: var(--font-mono);
-          padding: 1px 7px;
-          border-radius: 10px;
-          background: var(--bg-elevated);
+          font-weight: 600;
+          padding: 2px 8px;
+          border-radius: 9999px;
+          background: rgba(255, 255, 255, 0.06);
           color: var(--text-muted);
           border: 1px solid var(--border-subtle);
         }
@@ -754,11 +755,24 @@ export function KanbanBoard({
         .kb-assignee-row {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 7px;
+        }
+        .kb-assignee-row .mini-avatar,
+        .mini-avatar {
+          width: 22px !important;
+          height: 22px !important;
+          max-width: 22px !important;
+          max-height: 22px !important;
+          border-radius: 50% !important;
+          object-fit: cover !important;
+          border: 1px solid var(--border-default) !important;
+          flex-shrink: 0 !important;
+          display: block;
         }
         .kb-assignee-name {
           font-size: 11px;
           color: var(--text-secondary);
+          font-weight: 500;
         }
         .kb-comment-count {
           display: flex;
@@ -805,10 +819,14 @@ export function KanbanBoard({
           font-size: 12px;
           font-weight: 600;
           color: var(--text-secondary);
+          margin-top: 4px;
         }
         .kb-empty-subtext {
           font-size: 11px;
           color: var(--text-muted);
+          max-width: 150px;
+          line-height: 1.4;
+          margin: 0 auto;
         }
         .kb-empty-sparkle {
           color: var(--col-color, #6366f1);

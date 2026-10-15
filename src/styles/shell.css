@@ -561,7 +561,7 @@ body:has(.app-shell-root) {
   display: flex;
   align-items: center;
   min-width: 0;
-  flex-shrink: 1;
+  flex-shrink: 0;
 }
 
 .breadcrumb-pill {
@@ -571,8 +571,6 @@ body:has(.app-shell-root) {
   font-size: 13px;
   color: var(--text-secondary);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
 }
 
@@ -595,6 +593,7 @@ body:has(.app-shell-root) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 340px;
 }
 
 .topbar-center {
