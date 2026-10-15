@@ -59,6 +59,15 @@ import { InviteCollaboratorsModal } from './InviteCollaboratorsModal';
 import { IntakeShareModal } from './IntakeShareModal';
 import { DataExportModal } from './DataExportModal';
 import { KanbanBoard } from './KanbanBoard';
+import { ColumnConfigModal } from './ColumnConfigModal';
+import { 
+  evaluateItemCustomFields, 
+  computeColumnRollup, 
+  formatCustomFieldValue,
+  STARTER_CUSTOM_COLUMNS 
+} from '../../lib/customFields/customFieldEngine';
+import { BoardColumn } from '../../lib/mondaydb/types';
+import { DollarSign, Star, CheckSquare, Settings } from 'lucide-react';
 
 export const BoardView: React.FC = () => {
   const { 
@@ -87,6 +96,10 @@ export const BoardView: React.FC = () => {
     boardViewMode,
     setBoardViewMode,
     boardColumns,
+    addBoardColumn,
+    updateBoardColumn,
+    deleteBoardColumn,
+    updateItemCustomValue,
     addSubItem,
     updateSubItem,
     deleteSubItem,
@@ -102,8 +115,26 @@ export const BoardView: React.FC = () => {
   const [isInviteModalOpen, setInviteModalOpen] = useState(false);
   const [isIntakeShareOpen, setIntakeShareOpen] = useState(false);
   const [isExportModalOpen, setExportModalOpen] = useState(false);
+  const [isColumnModalOpen, setColumnModalOpen] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<BoardColumn | null>(null);
+  const [activeInlineDropdownCol, setActiveInlineDropdownCol] = useState<{ itemId: string; colId: string } | null>(null);
   const [isAutoJoining, setIsAutoJoining] = useState(false);
   const autoJoinAttemptedRef = useRef(false);
+
+  const customColumns = useMemo(() => {
+    const cols = boardColumns && boardColumns.length > 0 ? boardColumns : STARTER_CUSTOM_COLUMNS;
+    return cols.filter((c) => !['col-item', 'col-status', 'col-person', 'col-priority', 'col-sla', 'col-date', 'col-numbers', 'col-subitems'].includes(c.id));
+  }, [boardColumns]);
+
+  const gridColumnsStyle = useMemo(() => {
+    const customWidths = customColumns.map((c) => `${c.width || 120}px`).join(' ');
+    const template = `minmax(280px, 2fr) 130px 130px 90px 120px 80px ${customWidths ? `${customWidths} ` : ''}85px 36px`;
+    const minWidth = 980 + customColumns.reduce((acc, c) => acc + (c.width || 120), 0) + 40;
+    return {
+      gridTemplateColumns: template,
+      minWidth: `${minWidth}px`
+    };
+  }, [customColumns]);
 
   useEffect(() => {
     if (!activeBoard && typeof window !== 'undefined' && !autoJoinAttemptedRef.current) {
@@ -869,14 +900,54 @@ export const BoardView: React.FC = () => {
                   {!group.collapsed && (
                     <div className="group-table-content">
                       {/* Column Header Grid */}
-                      <div className="table-header-grid">
+                      <div 
+                        className="table-header-grid"
+                        style={{
+                          gridTemplateColumns: gridColumnsStyle.gridTemplateColumns,
+                          minWidth: gridColumnsStyle.minWidth,
+                        }}
+                      >
                         <div className="col-name">TASK / SUMMARY</div>
                         <div className="col-status">STATUS</div>
                         <div className="col-assignee">ASSIGNEE</div>
                         <div className="col-priority">PRIORITY</div>
                         <div className="col-sla">SLA DEADLINE</div>
                         <div className="col-pts font-mono">POINTS</div>
+
+                        {/* Dynamic Custom Column Headers */}
+                        {customColumns.map((col) => (
+                          <div 
+                            key={col.id} 
+                            className="col-custom font-mono flex items-center justify-between group cursor-pointer hover:text-white transition-colors"
+                            onClick={() => {
+                              setEditingColumn(col);
+                              setColumnModalOpen(true);
+                            }}
+                            title={`Configure ${col.title} (${col.type})`}
+                          >
+                            <span className="truncate">{col.title.toUpperCase()}</span>
+                            <Settings size={11} className="opacity-0 group-hover:opacity-100 text-indigo-400 transition-opacity ml-1 shrink-0" />
+                          </div>
+                        ))}
+
                         <div className="col-subtasks font-mono">SUB-ITEMS</div>
+
+                        {/* Add Column Action Header */}
+                        <div className="col-add-btn flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingColumn(null);
+                              setColumnModalOpen(true);
+                              playClickSound();
+                            }}
+                            className="p-1 rounded hover:bg-indigo-600/30 text-slate-400 hover:text-indigo-400 transition-colors"
+                            title="Add Custom Column"
+                            id="add-custom-column-btn"
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Items Rows */}
@@ -886,7 +957,7 @@ export const BoardView: React.FC = () => {
                           const subItemsList = item.sub_items || [];
                           const subItemCount = subItemsList.length;
                           const pointsVal = item.numbers_value || 5;
-                          const formulaVal = evaluateFormula('{Story Pts} * 1.5', { 'Story Pts': pointsVal });
+                          const computedCustomValues = evaluateItemCustomFields(item, boardColumns || []);
                           const isRowActive = activeInlineStatusId === item.id;
 
                           const activeViewer = focusedTeammatesByItem.get(item.id);
@@ -896,6 +967,8 @@ export const BoardView: React.FC = () => {
                               <div
                                 className="table-row"
                                 style={{ 
+                                  gridTemplateColumns: gridColumnsStyle.gridTemplateColumns,
+                                  minWidth: gridColumnsStyle.minWidth,
                                   zIndex: isRowActive ? 70 : 1,
                                   position: 'relative',
                                   borderLeft: activeViewer ? `3px solid ${activeViewer.color}` : undefined,
@@ -1032,6 +1105,162 @@ export const BoardView: React.FC = () => {
                                     </span>
                                   </div>
 
+                                  {/* Dynamic Custom Columns */}
+                                  {customColumns.map((col) => {
+                                    const customVal = computedCustomValues[col.id];
+
+                                    return (
+                                      <div 
+                                        key={col.id} 
+                                        className="col-custom font-mono text-xs flex items-center"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {col.type === 'checkbox' && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              playClickSound();
+                                              updateItemCustomValue(item.id, col.id, !customVal);
+                                            }}
+                                            className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
+                                              Boolean(customVal)
+                                                ? 'bg-emerald-500 border-emerald-400 text-white shadow-sm shadow-emerald-500/50'
+                                                : 'bg-slate-900 border-slate-700 text-transparent hover:border-slate-500'
+                                            }`}
+                                            title={Boolean(customVal) ? 'Signed off' : 'Pending sign-off'}
+                                            id={`checkbox-${col.id}-${item.id}`}
+                                          >
+                                            <Check size={12} strokeWidth={3} />
+                                          </button>
+                                        )}
+
+                                        {col.type === 'rating' && (
+                                          <div className="flex items-center gap-0.5">
+                                            {Array.from({ length: col.settings?.maxRating || 5 }).map((_, rIdx) => {
+                                              const starNum = rIdx + 1;
+                                              const isFilled = starNum <= (Number(customVal) || 0);
+                                              return (
+                                                <button
+                                                  key={rIdx}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    playClickSound();
+                                                    const nextRating = customVal === starNum ? 0 : starNum;
+                                                    updateItemCustomValue(item.id, col.id, nextRating);
+                                                  }}
+                                                  className="hover:scale-125 transition-transform"
+                                                  title={`${starNum} stars`}
+                                                >
+                                                  <Star
+                                                    size={12}
+                                                    className={isFilled ? 'fill-amber-400 text-amber-400' : 'text-slate-600 hover:text-slate-400'}
+                                                  />
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+
+                                        {col.type === 'dropdown' && (
+                                          <div className="relative">
+                                            {(() => {
+                                              const selectedOpt = (col.settings?.options || []).find(
+                                                (o) => o.id === customVal || o.label === customVal
+                                              );
+                                              return (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setActiveInlineDropdownCol(
+                                                      activeInlineDropdownCol?.itemId === item.id && activeInlineDropdownCol?.colId === col.id
+                                                        ? null
+                                                        : { itemId: item.id, colId: col.id }
+                                                    );
+                                                  }}
+                                                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border"
+                                                  style={{
+                                                    backgroundColor: selectedOpt ? `${selectedOpt.color}20` : 'rgba(255, 255, 255, 0.05)',
+                                                    borderColor: selectedOpt ? `${selectedOpt.color}60` : 'rgba(255, 255, 255, 0.1)',
+                                                    color: selectedOpt ? selectedOpt.color : 'var(--text-secondary)'
+                                                  }}
+                                                >
+                                                  <span className="truncate max-w-[80px]">
+                                                    {selectedOpt ? selectedOpt.label : 'Select...'}
+                                                  </span>
+                                                  <ChevronDown size={10} />
+                                                </button>
+                                              );
+                                            })()}
+
+                                            {activeInlineDropdownCol?.itemId === item.id && activeInlineDropdownCol?.colId === col.id && (
+                                              <div className="dropdown-popover glass-panel animate-pop-in" style={{ zIndex: 90 }}>
+                                                {(col.settings?.options || []).map((opt) => (
+                                                  <button
+                                                    key={opt.id}
+                                                    type="button"
+                                                    className="dropdown-option flex items-center gap-2"
+                                                    onClick={() => {
+                                                      playClickSound();
+                                                      updateItemCustomValue(item.id, col.id, opt.id);
+                                                      setActiveInlineDropdownCol(null);
+                                                    }}
+                                                  >
+                                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: opt.color }} />
+                                                    <span>{opt.label}</span>
+                                                    {customVal === opt.id && <Check size={12} className="ml-auto" />}
+                                                  </button>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {col.type === 'currency' && (
+                                          <span 
+                                            className="px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-500/30 cursor-pointer hover:border-emerald-400"
+                                            onClick={() => {
+                                              const promptVal = prompt(`Enter ${col.title}:`, String(customVal ?? ''));
+                                              if (promptVal !== null) {
+                                                const parsed = Number(promptVal.replace(/[^0-9.-]+/g, '')) || 0;
+                                                updateItemCustomValue(item.id, col.id, parsed);
+                                                playClickSound();
+                                              }
+                                            }}
+                                            title="Click to edit budget"
+                                          >
+                                            {formatCustomFieldValue(customVal, col)}
+                                          </span>
+                                        )}
+
+                                        {col.type === 'formula' && (
+                                          <span 
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-950/40 text-indigo-300 border border-indigo-500/30 font-mono"
+                                            title={`Formula: ${col.settings?.formula || 'N/A'}`}
+                                          >
+                                            <Calculator size={10} className="text-indigo-400 shrink-0" />
+                                            <span>{formatCustomFieldValue(customVal, col)}</span>
+                                          </span>
+                                        )}
+
+                                        {(col.type === 'number' || col.type === 'text') && (
+                                          <span 
+                                            className="px-2 py-0.5 rounded bg-slate-800/80 text-slate-300 border border-slate-700/60 cursor-pointer hover:border-slate-500"
+                                            onClick={() => {
+                                              const promptVal = prompt(`Enter ${col.title}:`, String(customVal ?? ''));
+                                              if (promptVal !== null) {
+                                                const next = col.type === 'number' ? (Number(promptVal) || 0) : promptVal;
+                                                updateItemCustomValue(item.id, col.id, next);
+                                                playClickSound();
+                                              }
+                                            }}
+                                          >
+                                            {formatCustomFieldValue(customVal, col)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+
                                   {/* Sub-items Pill */}
                                   <div className="col-subtasks" onClick={(e) => e.stopPropagation()}>
                                     <button
@@ -1043,6 +1272,9 @@ export const BoardView: React.FC = () => {
                                       <span>{subItemCount} subs</span>
                                     </button>
                                   </div>
+
+                                  {/* Spacer for Add Column Header Alignment */}
+                                  <div className="col-add-btn-spacer w-8" />
                                 </div>
                               </div>
 
@@ -1089,8 +1321,8 @@ export const BoardView: React.FC = () => {
                       </div>
 
                       {/* Group Summary Footer */}
-                      <div className="group-summary-footer">
-                        <div className="footer-status-group">
+                      <div className="group-summary-footer flex flex-wrap items-center gap-3">
+                        <div className="footer-status-group flex items-center gap-2">
                           <span className="text-xs text-muted font-mono">{groupItems.length} tasks</span>
                           <span className="text-muted">·</span>
                           <span className="text-xs text-muted font-mono">{groupAgg.numbersSum} pts</span>
@@ -1101,6 +1333,16 @@ export const BoardView: React.FC = () => {
                             <strong className="footer-metric-emerald">{groupAgg.subItemsCompleted}/{groupAgg.subItemCount} ({groupAgg.subItemProgressPercent}%)</strong>
                           </div>
                         )}
+                        {/* Dynamic Custom Column Rollups */}
+                        {customColumns.filter(c => c.settings?.rollup && c.settings.rollup !== 'none').map((col) => {
+                          const rollup = computeColumnRollup(col, groupItems);
+                          return (
+                            <div key={col.id} className="footer-custom-rollup font-mono text-xs flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-900/80 border border-slate-700/60">
+                              <span className="text-slate-400">{col.title}:</span>
+                              <strong className="text-emerald-400">{rollup.formatted}</strong>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1119,7 +1361,7 @@ export const BoardView: React.FC = () => {
                   <StatusBatteryBar segments={boardAgg.statusBattery} height={12} />
                 </div>
               </div>
-              <div className="board-metrics-right font-mono">
+              <div className="board-metrics-right font-mono flex flex-wrap items-center gap-3">
                 <div className="board-metric-item">
                   <span className="footer-metric-label">Total:</span>
                   <strong className="footer-metric-val">{boardAgg.totalItems} tasks</strong>
@@ -1134,6 +1376,16 @@ export const BoardView: React.FC = () => {
                     <strong className="footer-metric-emerald">{boardAgg.totalSubItemsCompleted}/{boardAgg.totalSubItems}</strong>
                   </div>
                 )}
+                {/* Dynamic Board-wide Custom Column Rollups */}
+                {customColumns.filter(c => c.settings?.rollup && c.settings.rollup !== 'none').map((col) => {
+                  const rollup = computeColumnRollup(col, filteredItems);
+                  return (
+                    <div key={col.id} className="board-metric-item flex items-center gap-1">
+                      <span className="footer-metric-label">{col.title}:</span>
+                      <strong className="footer-metric-emerald">{rollup.formatted}</strong>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1252,6 +1504,29 @@ export const BoardView: React.FC = () => {
             });
           });
         }}
+      />
+
+      {/* Dynamic Custom Column Configuration Modal (Phase 11) */}
+      <ColumnConfigModal
+        isOpen={isColumnModalOpen}
+        onClose={() => {
+          setColumnModalOpen(false);
+          setEditingColumn(null);
+        }}
+        onSaveColumn={(newCol) => {
+          if (!activeBoard) return;
+          if (editingColumn) {
+            updateBoardColumn(activeBoard.id, editingColumn.id, newCol);
+          } else {
+            addBoardColumn(activeBoard.id, newCol);
+          }
+        }}
+        onDeleteColumn={(colId) => {
+          if (!activeBoard) return;
+          deleteBoardColumn(activeBoard.id, colId);
+        }}
+        initialColumn={editingColumn}
+        existingColumns={boardColumns || []}
       />
 
       <style jsx>{`

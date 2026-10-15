@@ -36,7 +36,12 @@ import {
   AlertTriangle,
   Inbox,
   ExternalLink,
-  RotateCcw
+  RotateCcw,
+  DollarSign,
+  Star,
+  Calculator,
+  ListFilter,
+  Binary
 } from 'lucide-react';
 import { BoardItem, SubTask } from '../../types';
 import { formatRelativeTime, formatFullDateTime } from '../../lib/timeAgo';
@@ -45,6 +50,11 @@ import { playClickSound, playTransitionSound, playCompleteSound, playUrgentSound
 import { RbacAuthority } from '../../lib/auth/rbac';
 import { calculateCriticalPath, detectDependencyCycle } from '../../lib/timeline/criticalPathEngine';
 import { rollbackTicketToVersion, AuditEvent } from '../../lib/audit/auditEngine';
+import { 
+  evaluateItemCustomFields, 
+  formatCustomFieldValue, 
+  STARTER_CUSTOM_COLUMNS 
+} from '../../lib/customFields/customFieldEngine';
 
 export const ItemDetailPanel: React.FC = () => {
   const { 
@@ -64,8 +74,14 @@ export const ItemDetailPanel: React.FC = () => {
     boardItems,
     openItemDetail,
     addDependencyLink,
-    removeDependencyLink
+    removeDependencyLink,
+    boardColumns,
+    updateItemCustomValue,
   } = useApp();
+
+  const customColumns = (boardColumns && boardColumns.length > 0 ? boardColumns : STARTER_CUSTOM_COLUMNS).filter(
+    (c) => !['col-item', 'col-status', 'col-person', 'col-priority', 'col-sla', 'col-date', 'col-numbers', 'col-subitems'].includes(c.id)
+  );
 
   const currentWorkspaceMember = members.find((m) => m.user_id === currentUser?.id);
   const canDelete = selectedItem
@@ -737,6 +753,159 @@ export const ItemDetailPanel: React.FC = () => {
                     </a>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Fields & Formulas Section (Phase 11) */}
+          {customColumns.length > 0 && (
+            <div className="section-block mt-3" id="detail-custom-fields-section">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center gap-2">
+                  <Calculator size={15} className="text-indigo-400" />
+                  <h4 className="section-heading mb-0">Custom Fields & Formulas</h4>
+                </div>
+                <span className="text-[11px] font-mono text-slate-400">
+                  {customColumns.length} fields
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {customColumns.map((col) => {
+                  const computedValues = evaluateItemCustomFields(selectedItem, boardColumns || []);
+                  const customVal = computedValues[col.id];
+
+                  return (
+                    <div 
+                      key={col.id} 
+                      className="p-2.5 rounded-xl border border-slate-800 bg-slate-900/60 flex flex-col justify-between gap-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-medium text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                          {col.type === 'currency' && <DollarSign size={11} className="text-emerald-400" />}
+                          {col.type === 'rating' && <Star size={11} className="text-amber-400" />}
+                          {col.type === 'checkbox' && <CheckSquare size={11} className="text-indigo-400" />}
+                          {col.type === 'formula' && <Calculator size={11} className="text-purple-400" />}
+                          <span>{col.title}</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-500 uppercase">{col.type}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        {col.type === 'checkbox' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playClickSound();
+                              updateItemCustomValue(selectedItem.id, col.id, !customVal);
+                            }}
+                            className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-medium border transition-all ${
+                              Boolean(customVal)
+                                ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300'
+                                : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border ${
+                              Boolean(customVal) ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-slate-600'
+                            }`}>
+                              {Boolean(customVal) && <Check size={10} strokeWidth={3} />}
+                            </div>
+                            <span>{Boolean(customVal) ? 'Signed off' : 'Pending Approval'}</span>
+                          </button>
+                        )}
+
+                        {col.type === 'rating' && (
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: col.settings?.maxRating || 5 }).map((_, rIdx) => {
+                              const starNum = rIdx + 1;
+                              const isFilled = starNum <= (Number(customVal) || 0);
+                              return (
+                                <button
+                                  key={rIdx}
+                                  type="button"
+                                  onClick={() => {
+                                    playClickSound();
+                                    const nextRating = customVal === starNum ? 0 : starNum;
+                                    updateItemCustomValue(selectedItem.id, col.id, nextRating);
+                                  }}
+                                  className="hover:scale-125 transition-transform"
+                                >
+                                  <Star
+                                    size={14}
+                                    className={isFilled ? 'fill-amber-400 text-amber-400' : 'text-slate-700 hover:text-slate-400'}
+                                  />
+                                </button>
+                              );
+                            })}
+                            <span className="text-xs font-mono text-amber-400 ml-1.5">
+                              {customVal ? `${customVal}/${col.settings?.maxRating || 5}` : 'Unrated'}
+                            </span>
+                          </div>
+                        )}
+
+                        {col.type === 'dropdown' && (
+                          <select
+                            value={customVal || ''}
+                            onChange={(e) => {
+                              playClickSound();
+                              updateItemCustomValue(selectedItem.id, col.id, e.target.value);
+                            }}
+                            className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 outline-none"
+                          >
+                            <option value="">Select option...</option>
+                            {(col.settings?.options || []).map((opt) => (
+                              <option key={opt.id} value={opt.id}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+
+                        {col.type === 'currency' && (
+                          <div className="flex items-center gap-1.5 w-full">
+                            <span className="text-xs font-mono text-emerald-400 font-semibold">
+                              {col.settings?.unit || '$'}
+                            </span>
+                            <input
+                              type="number"
+                              value={customVal ?? ''}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                updateItemCustomValue(selectedItem.id, col.id, val);
+                              }}
+                              className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-300 outline-none focus:border-emerald-500"
+                            />
+                          </div>
+                        )}
+
+                        {col.type === 'formula' && (
+                          <div className="w-full flex items-center justify-between px-2.5 py-1 rounded-lg bg-indigo-950/30 border border-indigo-500/30">
+                            <span className="text-xs font-mono text-indigo-300 font-semibold">
+                              {formatCustomFieldValue(customVal, col)}
+                            </span>
+                            <span className="text-[10px] font-mono text-indigo-400/80 truncate max-w-[120px]" title={col.settings?.formula}>
+                              fx: {col.settings?.formula}
+                            </span>
+                          </div>
+                        )}
+
+                        {(col.type === 'number' || col.type === 'text') && (
+                          <input
+                            type={col.type === 'number' ? 'number' : 'text'}
+                            value={customVal ?? ''}
+                            placeholder={`Enter ${col.title}...`}
+                            onChange={(e) => {
+                              const val = col.type === 'number' ? (e.target.value === '' ? 0 : Number(e.target.value)) : e.target.value;
+                              updateItemCustomValue(selectedItem.id, col.id, val);
+                            }}
+                            className="w-full px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 outline-none focus:border-indigo-500"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

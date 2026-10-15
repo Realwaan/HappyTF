@@ -24,6 +24,7 @@ timeline
     Phase 8 (Public Work Intake & Customer Tracker) : Frictionless Bug & Feature Intake : Zero-Auth Ticket Tracking : Priority-Tiered Dynamic SLAs : Auto-Board Triage Routing
     Phase 9 (Data Portability & Audit Vault) : RFC 4180 CSV Export & Importer : Lossless JSON Snapshot : Markdown Sprint Specs : OCC Time-Travel Rollback
     Phase 10 (Deep Mobile Ergonomics) : Native Bottom Navigation Bar : Touch Snap-Scroll Kanban : Responsive Bottom Sheet Drawer : Safe-Area Inset Handling
+    Phase 11 (Dynamic Custom Fields & Formulas) : User-Definable Columns : Live Formula Calculations : Summary Rollups : Column Config Modal
 ```
 
 ---
@@ -285,6 +286,46 @@ timeline
 7. **Comprehensive Vitest Suite**:
    - `tests/mobile_responsiveness_audit.test.ts` (6 tests).
    - Complete workspace passes 100% green across 24 test files (129 tests).
+
+---
+
+## Phase 11: Dynamic Custom Fields & Formula Columns — [COMPLETED]
+
+**Goal:** Empower teams to define bespoke domain schemas directly on board grids—including dropdowns, star ratings, monetary values, and live computed formula rollups—matching tier-1 Work OS capabilities (Monday.com & Airtable).
+
+### Completed Deliverables:
+1. **Dynamic Custom Fields & Formula Calculation Engine (`src/lib/customFields/customFieldEngine.ts`)**:
+   - **Extended Domain Model**: Added `'number' | 'currency' | 'rating' | 'checkbox' | 'dropdown'` to `ColumnType` in `src/lib/mondaydb/types.ts`. Enhanced `BoardColumn.settings` with `unit`, `precision`, `rollup` (`sum` | `avg` | `min` | `max` | `count`), `maxRating`, and `description`.
+   - **Safe Isomorphic Formula Syntax Validation (`validateFormulaSyntax`)**: Validates formula expressions without unsafe `eval()`; catches syntax errors, unclosed parentheses, and unknown symbols.
+   - **Formula Dynamic Evaluation (`evaluateItemCustomFields`)**: Resolves both native attributes (`priority`, `status`, `version`, `title`) and custom field IDs (`budget`, `effort`, `roi`) into live evaluated results with graceful zero-division error handling (`#ERR:DIV/0`).
+   - **Currency & Rating Formatters (`formatCustomFieldValue`)**: Handles localized currency symbols (`$`, `€`, `£`, `¥`), star rating visual metrics, and precision rounding.
+   - **Column Summary Rollups (`computeColumnRollup`)**: Calculates group-level and board-level aggregate rollups (`Sum`, `Average`, `Min`, `Max`, `Count`) across rows.
+2. **Global State Integration & OCC v2 Concurrency Safeguards**:
+   - **Monotonic Version Increment (`AppContext.tsx`)**: Column updates and custom field mutations increment `item.version + 1` monotonically to prevent write collisions.
+   - **Modular State Contexts (`BoardContext.tsx`, `TicketContext.tsx`)**: Exposed `updateBoardColumn`, `deleteBoardColumn`, and `updateItemCustomValue` across the application.
+3. **Interactive Column Configuration Modal (`src/components/board/ColumnConfigModal.tsx`)**:
+   - **Rich Field Presets**: 1-click presets for *Currency ($)*, *Client Rating (★)*, *Approval Checkbox (✓)*, *Category Dropdown*, *ROI Formula (fx)*, and *Precision Number*.
+   - **Interactive Dropdown Tag Editor**: Color picker and tag list builder for custom dropdown options.
+   - **Interactive Formula Builder**: Clickable formula token chips (`{budget}`, `{effort}`, `SUM()`, `ROUND()`) with real-time validation indicator and live preview result banner.
+4. **Interactive Board Grid Integration (`src/components/board/BoardView.tsx`)**:
+   - **Dynamic Grid Layout**: Dynamic column template CSS calculation aligning table header cells, item row cells, and footer rollup summaries without horizontal layout jitter.
+   - **Inline Cell Editors**:
+     - Star rating clicks (`1-5` stars with hover highlight).
+     - Checkbox toggle with instant visual checked state.
+     - Currency / Number quick-input with unit formatting.
+     - Dropdown option selector popovers with status badges.
+     - Read-only formula badges displaying live calculated metrics (`1.8x ROI`).
+   - **Header Config & Add Action**: Quick click on custom column headers triggers editing; `+ Add Column` button launches creation modal.
+   - **Group & Board Footer Rollups**: Displays calculated aggregate badges (`Sum: $32,000`, `Avg: 4.3★`, `Total: 4 items`) pinned below each group and board table.
+5. **Item Detail Panel Custom Fields Card (`src/components/board/ItemDetailPanel.tsx`)**:
+   - Dedicated `#detail-custom-fields-section` with interactive editors for custom fields and live formula preview tags.
+6. **Starter Custom Fields & Seed Data (`src/lib/mock-data.ts`)**:
+   - Out-of-the-box starter custom columns seeded on active boards: `Budget ($)`, `Client Sign-off [✓]`, `Impact Rating [★]`, and `Effort ROI [fx]`.
+   - Seeded live values across tickets `item-tk-1` through `item-tk-4`.
+7. **Comprehensive Vitest Suite**:
+   - `tests/custom_fields_formula.test.ts` (16 unit tests covering syntax validation, evaluation, formatting, rollups, and zero division fallbacks).
+   - Complete workspace passes 100% green across 25 test files (146 tests).
+
 
 
 

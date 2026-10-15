@@ -14,14 +14,17 @@ import {
 } from '../types';
 
 export const DEFAULT_BOARD_COLUMNS: BoardColumn[] = [
-  { id: 'col-item', title: 'Item', type: 'text', width: 340 },
+  { id: 'col-item', title: 'Task / Summary', type: 'text', width: 340 },
   { id: 'col-status', title: 'Status', type: 'status', width: 140 },
-  { id: 'col-person', title: 'Owner', type: 'people', width: 130 },
-  { id: 'col-priority', title: 'Priority', type: 'priority', width: 120 },
-  { id: 'col-date', title: 'Due Date', type: 'date', width: 120 },
-  { id: 'col-numbers', title: 'Story Pts', type: 'numbers', width: 100, settings: { unit: 'pts' } },
-  { id: 'col-formula', title: 'Calculated SLA', type: 'formula', width: 130, settings: { formula: '{Story Pts} * 1.5' } },
-  { id: 'col-subitems', title: 'Sub-Items', type: 'subitems', width: 130 },
+  { id: 'col-person', title: 'Assignee', type: 'people', width: 130 },
+  { id: 'col-priority', title: 'Priority', type: 'priority', width: 110 },
+  { id: 'col-date', title: 'SLA Deadline', type: 'date', width: 120 },
+  { id: 'col-numbers', title: 'Story Pts', type: 'numbers', width: 90, settings: { unit: 'pts', rollup: 'sum' } },
+  { id: 'col-budget', title: 'Budget', type: 'currency', width: 110, settings: { unit: '$', precision: 0, rollup: 'sum' } },
+  { id: 'col-signoff', title: 'Client Sign-off', type: 'checkbox', width: 115, settings: { rollup: 'count_checked' } },
+  { id: 'col-rating', title: 'Impact Rating', type: 'rating', width: 120, settings: { maxRating: 5, rollup: 'avg' } },
+  { id: 'col-roi', title: 'Effort ROI', type: 'formula', width: 110, settings: { formula: '{Budget} / ({Story Pts} * 100)', precision: 2, unit: 'x', rollup: 'avg' } },
+  { id: 'col-subitems', title: 'Sub-Items', type: 'subitems', width: 100 },
 ];
 
 export const INITIAL_FOLDERS: Record<string, Folder[]> = {
@@ -324,6 +327,11 @@ export const INITIAL_BOARD_ITEMS: Record<string, BoardItem[]> = {
           reactions: [{ emoji: '🔥', count: 2, users: ['Alex Rivera', 'Taylor Chen'] }],
         },
       ],
+      custom_values: {
+        'col-budget': 4500,
+        'col-signoff': true,
+        'col-rating': 5,
+      },
       version: 2,
     },
     {
@@ -349,6 +357,7 @@ export const INITIAL_BOARD_ITEMS: Record<string, BoardItem[]> = {
         avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
       },
       tags: ['Integrations', 'Slack API'],
+      numbers_value: 6,
       subtasks: [
         { id: 'st-4', title: 'Update Slack event filter for resolved status', completed: true },
         { id: 'st-5', title: 'Add regression unit test', completed: true },
@@ -358,6 +367,11 @@ export const INITIAL_BOARD_ITEMS: Record<string, BoardItem[]> = {
         { id: 'act-tk-3', author_name: 'Taylor Chen', action: 'Submitted PR #42 for review', timestamp: '1 hour ago' },
       ],
       comments: [],
+      custom_values: {
+        'col-budget': 2800,
+        'col-signoff': false,
+        'col-rating': 4,
+      },
       version: 3,
     },
     {
@@ -382,10 +396,16 @@ export const INITIAL_BOARD_ITEMS: Record<string, BoardItem[]> = {
         avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
       },
       tags: ['Monday.com', 'CS Ops'],
+      numbers_value: 4,
       subtasks: [],
       description: 'Enable mapping between Monday.com custom dropdowns and HappyTF SLA priority tags.',
       activities: [],
       comments: [],
+      custom_values: {
+        'col-budget': 1600,
+        'col-signoff': true,
+        'col-rating': 3,
+      },
       version: 1,
     },
     {
@@ -410,6 +430,7 @@ export const INITIAL_BOARD_ITEMS: Record<string, BoardItem[]> = {
         avatar: DEMO_USER.avatar_url!,
       },
       tags: ['Security', 'Auth', 'Redis'],
+      numbers_value: 8,
       subtasks: [
         { id: 'st-6', title: 'Invalidate old tokens in Redis', completed: true },
         { id: 'st-7', title: 'Audit logs verification', completed: true },
@@ -419,6 +440,11 @@ export const INITIAL_BOARD_ITEMS: Record<string, BoardItem[]> = {
         { id: 'act-tk-4', author_name: 'Alex Rivera', action: 'Deployed security fix and verified audit trail', timestamp: 'Yesterday' },
       ],
       comments: [],
+      custom_values: {
+        'col-budget': 5200,
+        'col-signoff': true,
+        'col-rating': 5,
+      },
       version: 4,
     },
   ],

@@ -132,6 +132,9 @@ interface AppContextType {
 
   // Dynamic Columns & Sub-Items
   addBoardColumn: (boardId: string, column: BoardColumn) => void;
+  updateBoardColumn: (boardId: string, columnId: string, updates: Partial<BoardColumn>) => void;
+  deleteBoardColumn: (boardId: string, columnId: string) => void;
+  updateItemCustomValue: (itemId: string, columnId: string, value: any) => void;
   addSubItem: (itemId: string, title: string) => void;
   updateSubItem: (itemId: string, subItemId: string, updates: Partial<SubItem>) => void;
   deleteSubItem: (itemId: string, subItemId: string) => void;
@@ -2953,6 +2956,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
+  const updateBoardColumn = (boardId: string, columnId: string, updates: Partial<BoardColumn>) => {
+    if (!currentWorkspace) return;
+    const wsId = currentWorkspace.id;
+    setBoardsMap((prev) => ({
+      ...prev,
+      [wsId]: (prev[wsId] || []).map((b) => {
+        if (b.id !== boardId) return b;
+        const cols = (b.columns || [...DEFAULT_BOARD_COLUMNS]).map((c) =>
+          c.id === columnId ? { ...c, ...updates } : c
+        );
+        return { ...b, columns: cols };
+      }),
+    }));
+  };
+
+  const deleteBoardColumn = (boardId: string, columnId: string) => {
+    if (!currentWorkspace) return;
+    const wsId = currentWorkspace.id;
+    setBoardsMap((prev) => ({
+      ...prev,
+      [wsId]: (prev[wsId] || []).map((b) => {
+        if (b.id !== boardId) return b;
+        const cols = (b.columns || [...DEFAULT_BOARD_COLUMNS]).filter((c) => c.id !== columnId);
+        return { ...b, columns: cols };
+      }),
+    }));
+  };
+
+  const updateItemCustomValue = (itemId: string, columnId: string, value: any) => {
+    if (!activeBoardId) return;
+    const currentList = itemsMap[activeBoardId] || [];
+    const existing = currentList.find((i) => i.id === itemId);
+    if (!existing) return;
+
+    const nextCustomValues = {
+      ...(existing.custom_values || {}),
+      [columnId]: value,
+    };
+
+    updateBoardItem(itemId, {
+      custom_values: nextCustomValues,
+    });
+  };
+
   const addSubItem = (itemId: string, title: string) => {
     if (!activeBoardId) return;
     const currentList = itemsMap[activeBoardId] || [];
@@ -3045,6 +3092,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteFolder,
         moveBoardToFolder,
         addBoardColumn,
+        updateBoardColumn,
+        deleteBoardColumn,
+        updateItemCustomValue,
         addSubItem,
         updateSubItem,
         deleteSubItem,

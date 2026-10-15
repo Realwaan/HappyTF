@@ -24,6 +24,8 @@ export function useBoard() {
     joinBoard: app.joinBoard,
     toggleGroupCollapse: app.toggleGroupCollapse,
     addBoardColumn: app.addBoardColumn,
+    updateBoardColumn: app.updateBoardColumn,
+    deleteBoardColumn: app.deleteBoardColumn,
     createFolder: app.createFolder,
     deleteFolder: app.deleteFolder,
     moveBoardToFolder: app.moveBoardToFolder,

@@ -5,6 +5,11 @@
 
 export type ColumnType = 
   | 'text' 
+  | 'number'
+  | 'currency'
+  | 'rating'
+  | 'checkbox'
+  | 'dropdown'
   | 'status' 
   | 'people' 
   | 'date' 
@@ -26,11 +31,14 @@ export interface BoardColumn {
   title: string;
   type: ColumnType;
   width?: number;
+  description?: string;
   settings?: {
     options?: ColumnOption[];
-    unit?: string; // e.g. '$', 'h', 'pts'
+    unit?: string; // e.g. '$', '€', 'h', 'pts'
     formula?: string; // e.g. '{Estimate} - {Spent}' or '{Numbers} * 1.2'
     precision?: number;
+    rollup?: 'sum' | 'avg' | 'min' | 'max' | 'count_checked' | 'none';
+    maxRating?: number;
   };
 }
 

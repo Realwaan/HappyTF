@@ -17,9 +17,10 @@ describe('Phase 9: Enterprise Data Portability, Audit Trail & Rollback Vault', (
   const mockBoard: Board = {
     id: 'board-export-test',
     name: 'Core Platform Sprint 42',
+    icon_emoji: '📋',
     description: 'Sprint planning and release tracking',
     workspace_id: 'ws-acme-core',
-    created_at: '2026-10-01T00:00:00Z',
+    item_count: 2,
     updated_at: '2026-10-10T00:00:00Z',
   };
 
@@ -39,6 +40,8 @@ describe('Phase 9: Enterprise Data Portability, Audit Trail & Rollback Vault', (
       assignee: { id: 'usr-1', name: 'Elena Rostova', avatar: '' },
       tags: ['auth', 'safari'],
       description: 'Redirect loop occurs when cookies are blocked.\nIncludes "quoted" text and commas, here.',
+      activities: [],
+      comments: [],
       version: 2,
     },
     {
@@ -55,6 +58,8 @@ describe('Phase 9: Enterprise Data Portability, Audit Trail & Rollback Vault', (
       assignee: { id: 'usr-2', name: 'Marc Andrei', avatar: '' },
       tags: ['ui', 'theme'],
       description: 'Replace hex colors with CSS variables.',
+      activities: [],
+      comments: [],
       version: 1,
     },
   ];
@@ -186,7 +191,12 @@ val1,val2`;
         group_id: 'grp-1',
         title: 'Broken experimental refactor title',
         status: 'Stuck',
+        status_color: '#ef4444',
         priority: 'urgent',
+        due_date: '2026-10-10',
+        tags: [],
+        activities: [],
+        comments: [],
         version: 4, // Current version is 4
       };
 

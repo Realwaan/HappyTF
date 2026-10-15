@@ -152,6 +152,7 @@ describe('Phase 8: Public Work Intake Portal & External Client Tracker', () => {
       const now = Date.now();
       
       const urgent = processIntakeSubmission({
+        workspaceId: 'ws-acme-core',
         title: 'Crash in checkout',
         category: 'bug',
         priority: 'urgent',
@@ -163,6 +164,7 @@ describe('Phase 8: Public Work Intake Portal & External Client Tracker', () => {
       expect(Math.round(urgentHours)).toBe(2);
 
       const high = processIntakeSubmission({
+        workspaceId: 'ws-acme-core',
         title: 'High priority defect',
         category: 'bug',
         priority: 'high',
@@ -174,6 +176,7 @@ describe('Phase 8: Public Work Intake Portal & External Client Tracker', () => {
       expect(Math.round(highHours)).toBe(24);
 
       const low = processIntakeSubmission({
+        workspaceId: 'ws-acme-core',
         title: 'Low priority question',
         category: 'support',
         priority: 'low',
@@ -187,6 +190,7 @@ describe('Phase 8: Public Work Intake Portal & External Client Tracker', () => {
 
     it('respects explicit targetBoardId override from share links', () => {
       const res = processIntakeSubmission({
+        workspaceId: 'ws-acme-core',
         title: 'Custom board task',
         category: 'bug',
         priority: 'medium',

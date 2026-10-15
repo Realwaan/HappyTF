@@ -141,7 +141,7 @@ export type ASTNode =
   | { type: 'FunctionCall'; name: string; args: ASTNode[] };
 
 // Recursive Descent Parser
-class FormulaParser {
+export class FormulaParser {
   private tokens: Token[];
   private pos = 0;
 

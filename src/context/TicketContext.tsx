@@ -18,6 +18,7 @@ export function useTickets() {
     closeItemDetail: app.closeItemDetail,
     addBoardItem: app.addBoardItem,
     updateBoardItem: app.updateBoardItem,
+    updateItemCustomValue: app.updateItemCustomValue,
     deleteBoardItem: app.deleteBoardItem,
     claimBoardItem: app.claimBoardItem,
     addItemComment: app.addItemComment,
